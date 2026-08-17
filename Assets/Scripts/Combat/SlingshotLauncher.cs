@@ -1,6 +1,7 @@
 using UnityEngine;
 using CastleBusters.Core;
 using CastleBusters.Units;
+using CastleBusters.Environment;
 
 namespace CastleBusters.Combat
 {
