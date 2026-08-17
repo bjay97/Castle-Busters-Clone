@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using CastleBusters.Core;
 using CastleBusters.Environment;
 using CastleBusters.Units;
@@ -8,9 +9,12 @@ namespace CastleBusters.UI
 {
     public class UIManager : MonoBehaviour
     {
-        [Header("Turn & Action HUD")]
+        [Header("Turn & Action HUD (Supports Legacy Text or TextMeshPro)")]
         public Text turnText;
+        public TextMeshProUGUI turnTextTMP;
+        
         public Text actionCounterText;
+        public TextMeshProUGUI actionCounterTextTMP;
 
         [Header("Castle Health Bars")]
         public Image p1CastleHealthFill;
@@ -21,6 +25,7 @@ namespace CastleBusters.UI
         [Header("Game Over Overlay")]
         public GameObject gameOverPanel;
         public Text winnerText;
+        public TextMeshProUGUI winnerTextTMP;
         public Button restartButton;
 
         private void Start()
@@ -64,19 +69,17 @@ namespace CastleBusters.UI
 
         private void UpdateTurnUI(PlayerSide side)
         {
-            if (turnText != null)
-            {
-                turnText.text = (side == PlayerSide.Player1) ? "Player 1's Turn (Left Castle)" : "Player 2's Turn (Right Castle)";
-            }
+            string msg = (side == PlayerSide.Player1) ? "Player 1's Turn (Your Turn)" : "Player 2's Turn (AI Bot Thinking...)";
+            if (turnText != null) turnText.text = msg;
+            if (turnTextTMP != null) turnTextTMP.text = msg;
         }
 
         private void UpdateActionUI(int actionsTaken)
         {
-            if (actionCounterText != null)
-            {
-                int actionsRemaining = TurnManager.MaxActionsPerTurn - actionsTaken;
-                actionCounterText.text = $"Shots Remaining: {actionsRemaining}/{TurnManager.MaxActionsPerTurn}";
-            }
+            int actionsRemaining = TurnManager.MaxActionsPerTurn - actionsTaken;
+            string msg = $"Shots Remaining: {actionsRemaining}/{TurnManager.MaxActionsPerTurn}";
+            if (actionCounterText != null) actionCounterText.text = msg;
+            if (actionCounterTextTMP != null) actionCounterTextTMP.text = msg;
         }
 
         private void UpdateP1CastleHealth(float current, float max)
@@ -96,10 +99,9 @@ namespace CastleBusters.UI
             if (gameOverPanel != null)
             {
                 gameOverPanel.SetActive(true);
-                if (winnerText != null)
-                {
-                    winnerText.text = $"{winner} VICTORY!";
-                }
+                string msg = $"{winner} VICTORY!";
+                if (winnerText != null) winnerText.text = msg;
+                if (winnerTextTMP != null) winnerTextTMP.text = msg;
             }
         }
 
