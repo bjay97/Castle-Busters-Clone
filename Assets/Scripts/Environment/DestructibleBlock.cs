@@ -67,50 +67,6 @@ namespace CastleBusters.Environment
         private void DestroyBlock()
         {
             OnBlockDestroyed?.Invoke();
-
-            if (spawnDebrisOnDestroy)
-            {
-                // Instantly disable all physics colliders so debris doesn't interact with anything
-                Collider2D col = GetComponent<Collider2D>();
-                if (col != null) Destroy(col);
-                if (rb != null) Destroy(rb);
-
-                transform.SetParent(null);
-
-                // Start lightweight aesthetic fall coroutine
-                StartCoroutine(AestheticFallRoutine());
-            }
-            else
-            {
-                Destroy(gameObject);
-            }
-        }
-
-        private System.Collections.IEnumerator AestheticFallRoutine()
-        {
-            float duration = 0.6f;
-            float elapsed = 0f;
-            float fallSpeed = UnityEngine.Random.Range(3f, 6f);
-            float rotationSpeed = UnityEngine.Random.Range(-180f, 180f);
-
-            Color initialColor = spriteRenderer != null ? spriteRenderer.color : Color.white;
-
-            while (elapsed < duration)
-            {
-                elapsed += Time.deltaTime;
-                float alpha = Mathf.Lerp(1f, 0f, elapsed / duration);
-
-                transform.Translate(Vector3.down * fallSpeed * Time.deltaTime, Space.World);
-                transform.Rotate(0f, 0f, rotationSpeed * Time.deltaTime);
-
-                if (spriteRenderer != null)
-                {
-                    spriteRenderer.color = new Color(initialColor.r, initialColor.g, initialColor.b, alpha);
-                }
-
-                yield return null;
-            }
-
             Destroy(gameObject);
         }
 

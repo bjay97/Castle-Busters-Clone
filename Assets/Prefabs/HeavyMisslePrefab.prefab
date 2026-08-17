@@ -171,6 +171,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CastleBusters.Combat.Projectile
   directDamageMultiplier: 15
-  explosionRadius: 1.5
-  splashDamage: 40
+  explosionRadius: 1.2
+  splashDamage: 50
   maxLifetime: 8

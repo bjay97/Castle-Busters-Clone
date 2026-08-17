@@ -21,11 +21,27 @@ namespace CastleBusters.Environment
 
         private void Start()
         {
-            if (generateOnStart)
+            if (Application.isPlaying && generateOnStart && transform.childCount == 0)
             {
                 GenerateSlicedCastleFacade();
             }
         }
+
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            if (!Application.isPlaying && castleTexture != null && transform.childCount == 0)
+            {
+                UnityEditor.EditorApplication.delayCall += () =>
+                {
+                    if (this != null && !Application.isPlaying && transform.childCount == 0)
+                    {
+                        GenerateSlicedCastleFacade();
+                    }
+                };
+            }
+        }
+#endif
 
         [ContextMenu("Generate Sliced Castle Facade")]
         public void GenerateSlicedCastleFacade()
