@@ -4,6 +4,7 @@ using UnityEngine;
 using CastleBusters.Core;
 using CastleBusters.Units;
 using CastleBusters.Environment;
+using CastleBusters.Combat;
 
 namespace CastleBusters.AI
 {
