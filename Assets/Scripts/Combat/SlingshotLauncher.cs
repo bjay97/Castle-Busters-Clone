@@ -71,6 +71,34 @@ namespace CastleBusters.Combat
                     }
                 }
             }
+
+            // Scene search fallback for test scenes or missing Castle component
+            if (activeSoldier == null)
+            {
+                Soldier[] soldiers = FindObjectsByType<Soldier>(FindObjectsSortMode.None);
+                foreach (var s in soldiers)
+                {
+                    if (s != null && s.ownerSide == activeSide && !s.IsDead && !s.hasFiredThisTurn)
+                    {
+                        activeSoldier = s;
+                        break;
+                    }
+                }
+
+                // If only 1 soldier is alive on this side, reset flag so they can take the 2nd shot of the turn
+                if (activeSoldier == null)
+                {
+                    foreach (var s in soldiers)
+                    {
+                        if (s != null && s.ownerSide == activeSide && !s.IsDead)
+                        {
+                            s.hasFiredThisTurn = false;
+                            activeSoldier = s;
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
         private Vector2 GetPointerScreenPosition()
