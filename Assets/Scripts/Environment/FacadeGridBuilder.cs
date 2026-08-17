@@ -118,6 +118,13 @@ namespace CastleBusters.Environment
                 }
             }
 
+            // Auto-refresh parent Castle health calculation
+            Castle parentCastle = GetComponentInParent<Castle>();
+            if (parentCastle != null)
+            {
+                parentCastle.RefreshCastleHealth();
+            }
+
             Debug.Log($"[FacadeGridBuilder] Successfully generated tight castle facade with {columns * rows} sliced blocks!");
         }
 

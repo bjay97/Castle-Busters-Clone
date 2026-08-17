@@ -24,10 +24,21 @@ namespace CastleBusters.Environment
 
         private void Start()
         {
+            if (GameManager.Instance != null)
+            {
+                if (ownerSide == PlayerSide.Player1) GameManager.Instance.player1Castle = this;
+                else if (ownerSide == PlayerSide.Player2) GameManager.Instance.player2Castle = this;
+            }
+
             InitializeCastle();
         }
 
         public void InitializeCastle()
+        {
+            RefreshCastleHealth();
+        }
+
+        public void RefreshCastleHealth()
         {
             blocks.Clear();
             blocks.AddRange(GetComponentsInChildren<DestructibleBlock>());
@@ -38,6 +49,7 @@ namespace CastleBusters.Environment
                 if (block != null)
                 {
                     calculatedMaxHealth += block.maxHealth;
+                    block.OnDamageTaken -= HandleBlockDamage; // prevent duplicate registration
                     block.OnDamageTaken += HandleBlockDamage;
                 }
             }
