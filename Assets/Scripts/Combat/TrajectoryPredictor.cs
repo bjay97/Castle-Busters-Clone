@@ -15,6 +15,17 @@ namespace CastleBusters.Combat
         {
             lineRenderer = GetComponent<LineRenderer>();
             lineRenderer.enabled = false;
+
+            // Auto setup default LineRenderer properties if unconfigured
+            if (lineRenderer.material == null || lineRenderer.material.name.Contains("Default"))
+            {
+                lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+            }
+            lineRenderer.startWidth = 0.15f;
+            lineRenderer.endWidth = 0.05f;
+            lineRenderer.startColor = Color.yellow;
+            lineRenderer.endColor = new Color(1f, 1f, 1f, 0.2f);
+            lineRenderer.sortingOrder = 10;
         }
 
         public void ShowTrajectory(Vector2 startPosition, Vector2 launchVelocity, float gravityScale = 1f)

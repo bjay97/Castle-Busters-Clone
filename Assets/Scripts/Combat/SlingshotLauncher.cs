@@ -132,11 +132,10 @@ namespace CastleBusters.Combat
             Vector3 worldPos3D = mainCamera.ScreenToWorldPoint(new Vector3(pointerScreenPos.x, pointerScreenPos.y, -mainCamera.transform.position.z));
             Vector2 mouseWorldPos = (Vector2)worldPos3D;
 
-            if (IsPointerPressedThisFrame())
+            if (!isDragging && IsPointerPressedThisFrame())
             {
-                // Check if user clicked anywhere on screen or near active soldier
                 float distToSoldier = Vector2.Distance(mouseWorldPos, activeSoldier.transform.position);
-                if (distToSoldier < 6f || activeSoldier != null)
+                if (distToSoldier < 4f)
                 {
                     isDragging = true;
                     dragStartPosition = activeSoldier.transform.position;
@@ -155,17 +154,20 @@ namespace CastleBusters.Combat
 
                 Vector2 launchVelocity = dragVector * launchForceMultiplier;
 
-                if (trajectoryPredictor != null)
+                if (trajectoryPredictor != null && dragVector.magnitude > 0.1f)
                 {
                     trajectoryPredictor.ShowTrajectory(activeSoldier.transform.position, launchVelocity);
                 }
 
-                if (IsPointerReleasedThisFrame() || !IsPointerIsPressed())
+                if (IsPointerReleasedThisFrame())
                 {
                     isDragging = false;
                     if (trajectoryPredictor != null) trajectoryPredictor.HideTrajectory();
 
-                    FireProjectile(launchVelocity);
+                    if (dragVector.magnitude > 0.3f)
+                    {
+                        FireProjectile(launchVelocity);
+                    }
                 }
             }
         }
@@ -174,7 +176,18 @@ namespace CastleBusters.Combat
         {
             if (activeSoldier == null || activeSoldier.projectilePrefab == null) return;
 
-            GameObject projObj = Instantiate(activeSoldier.projectilePrefab, activeSoldier.transform.position, Quaternion.identity);
+            // Spawn slightly offset from soldier in launch direction
+            Vector3 spawnPos = activeSoldier.transform.position + (Vector3)(launchVelocity.normalized * 0.8f);
+            GameObject projObj = Instantiate(activeSoldier.projectilePrefab, spawnPos, Quaternion.identity);
+
+            // Ignore collision between launching soldier and projectile so projectile doesn't explode on self
+            Collider2D projCol = projObj.GetComponent<Collider2D>();
+            Collider2D soldierCol = activeSoldier.GetComponent<Collider2D>();
+            if (projCol != null && soldierCol != null)
+            {
+                Physics2D.IgnoreCollision(projCol, soldierCol);
+            }
+
             Rigidbody2D rb = projObj.GetComponent<Rigidbody2D>();
             if (rb != null)
             {
