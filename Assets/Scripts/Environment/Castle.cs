@@ -43,19 +43,21 @@ namespace CastleBusters.Environment
             blocks.Clear();
             blocks.AddRange(GetComponentsInChildren<DestructibleBlock>());
 
-            float calculatedMaxHealth = 0f;
+            int totalBlocks = blocks.Count;
+            int intactBlocks = 0;
+
             foreach (var block in blocks)
             {
-                if (block != null)
+                if (block != null && !block.IsDestroyed)
                 {
-                    calculatedMaxHealth += block.maxHealth;
-                    block.OnDamageTaken -= HandleBlockDamage; // prevent duplicate registration
-                    block.OnDamageTaken += HandleBlockDamage;
+                    intactBlocks++;
+                    block.OnBlockDestroyed -= HandleBlockDestroyed; // prevent duplicate
+                    block.OnBlockDestroyed += HandleBlockDestroyed;
                 }
             }
 
-            if (calculatedMaxHealth > 0f) maxCastleHealth = calculatedMaxHealth;
-            currentCastleHealth = maxCastleHealth;
+            maxCastleHealth = Mathf.Max(1f, totalBlocks);
+            currentCastleHealth = intactBlocks;
             OnCastleHealthChanged?.Invoke(currentCastleHealth, maxCastleHealth);
 
             // Register soldiers
@@ -79,11 +81,18 @@ namespace CastleBusters.Environment
             }
         }
 
-        private void HandleBlockDamage(float damage)
+        private void HandleBlockDestroyed()
         {
             if (IsDestroyed) return;
 
-            currentCastleHealth = Mathf.Max(0f, currentCastleHealth - damage);
+            // Recalculate intact blocks accurately
+            int intact = 0;
+            foreach (var block in blocks)
+            {
+                if (block != null && !block.IsDestroyed) intact++;
+            }
+
+            currentCastleHealth = intact;
             OnCastleHealthChanged?.Invoke(currentCastleHealth, maxCastleHealth);
 
             if (IsDestroyed)
@@ -109,7 +118,7 @@ namespace CastleBusters.Environment
         {
             foreach (var block in blocks)
             {
-                if (block != null) block.OnDamageTaken -= HandleBlockDamage;
+                if (block != null) block.OnBlockDestroyed -= HandleBlockDestroyed;
             }
         }
     }
