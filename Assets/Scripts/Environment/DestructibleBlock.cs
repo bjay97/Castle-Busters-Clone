@@ -27,10 +27,23 @@ namespace CastleBusters.Environment
 
         public bool IsDestroyed => currentHealth <= 0f;
 
+        [Header("Destruction Behavior")]
+        public bool isAttachedToFrame = true;
+        public bool spawnDebrisOnDestroy = true;
+
+        private Rigidbody2D rb;
+
         private void Start()
         {
             currentHealth = maxHealth;
+            rb = GetComponent<Rigidbody2D>();
             if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
+
+            if (isAttachedToFrame && rb != null)
+            {
+                rb.bodyType = RigidbodyType2D.Kinematic;
+                rb.useFullKinematicContacts = true;
+            }
         }
 
         public void TakeDamage(float damage)
@@ -54,7 +67,26 @@ namespace CastleBusters.Environment
         private void DestroyBlock()
         {
             OnBlockDestroyed?.Invoke();
-            Destroy(gameObject);
+
+            if (spawnDebrisOnDestroy && rb != null)
+            {
+                // Detach from castle frame and convert into a short-lived physics debris piece
+                transform.SetParent(null);
+                rb.bodyType = RigidbodyType2D.Dynamic;
+                rb.useFullKinematicContacts = false;
+                
+                // Add random impulse pop & spin
+                Vector2 randomImpulse = new Vector2(UnityEngine.Random.Range(-2f, 2f), UnityEngine.Random.Range(2f, 5f));
+                rb.AddForce(randomImpulse, ForceMode2D.Impulse);
+                rb.AddTorque(UnityEngine.Random.Range(-10f, 10f), ForceMode2D.Impulse);
+
+                // Fade/Destroy after 1.5s
+                Destroy(gameObject, 1.5f);
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
         }
 
         private void OnCollisionEnter2D(Collision2D collision)

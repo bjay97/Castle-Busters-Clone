@@ -24,15 +24,46 @@ namespace CastleBusters.Combat
         {
             mainCamera = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
             if (trajectoryPredictor == null) trajectoryPredictor = GetComponent<TrajectoryPredictor>();
+            if (trajectoryPredictor == null) trajectoryPredictor = gameObject.AddComponent<TrajectoryPredictor>();
 
-            if (activeSoldier == null)
-            {
-                activeSoldier = FindFirstObjectByType<Soldier>();
-            }
+            FindAndSelectPlayer1Soldier();
 
             if (TurnManager.Instance != null)
             {
                 TurnManager.Instance.OnTurnChanged += AutoSelectSoldierForTurn;
+            }
+        }
+
+        private void FindAndSelectPlayer1Soldier()
+        {
+            if (activeSoldier != null && !activeSoldier.IsDead && !activeSoldier.hasFiredThisTurn) return;
+
+            Soldier[] soldiers = FindObjectsByType<Soldier>(FindObjectsSortMode.None);
+            foreach (var s in soldiers)
+            {
+                if (s != null && s.ownerSide == PlayerSide.Player1 && !s.IsDead && !s.hasFiredThisTurn)
+                {
+                    activeSoldier = s;
+                    return;
+                }
+            }
+
+            // Fallback for P1 soldier taking 2nd action
+            foreach (var s in soldiers)
+            {
+                if (s != null && s.ownerSide == PlayerSide.Player1 && !s.IsDead)
+                {
+                    s.hasFiredThisTurn = false;
+                    activeSoldier = s;
+                    return;
+                }
+            }
+
+            // General fallback
+            if (soldiers.Length > 0 && activeSoldier == null)
+            {
+                activeSoldier = soldiers[0];
+                activeSoldier.hasFiredThisTurn = false;
             }
         }
 
@@ -148,6 +179,10 @@ namespace CastleBusters.Combat
         private void Update()
         {
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
+            if (activeSoldier == null || activeSoldier.IsDead || activeSoldier.hasFiredThisTurn)
+            {
+                FindAndSelectPlayer1Soldier();
+            }
             if (activeSoldier == null || activeSoldier.IsDead || activeSoldier.hasFiredThisTurn) return;
 
             if (mainCamera == null)
