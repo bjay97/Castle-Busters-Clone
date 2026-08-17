@@ -22,8 +22,13 @@ namespace CastleBusters.Combat
 
         private void Start()
         {
-            mainCamera = Camera.main;
+            mainCamera = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
             if (trajectoryPredictor == null) trajectoryPredictor = GetComponent<TrajectoryPredictor>();
+
+            if (activeSoldier == null)
+            {
+                activeSoldier = FindFirstObjectByType<Soldier>();
+            }
 
             if (TurnManager.Instance != null)
             {
@@ -68,18 +73,70 @@ namespace CastleBusters.Combat
             }
         }
 
+        private Vector2 GetPointerScreenPosition()
+        {
+#if ENABLE_INPUT_SYSTEM || UNITY_2020_1_OR_NEWER
+            if (UnityEngine.InputSystem.Pointer.current != null)
+            {
+                return UnityEngine.InputSystem.Pointer.current.position.ReadValue();
+            }
+#endif
+            return Input.mousePosition;
+        }
+
+        private bool IsPointerPressedThisFrame()
+        {
+#if ENABLE_INPUT_SYSTEM || UNITY_2020_1_OR_NEWER
+            if (UnityEngine.InputSystem.Pointer.current != null)
+            {
+                return UnityEngine.InputSystem.Pointer.current.press.wasPressedThisFrame;
+            }
+#endif
+            return Input.GetMouseButtonDown(0);
+        }
+
+        private bool IsPointerIsPressed()
+        {
+#if ENABLE_INPUT_SYSTEM || UNITY_2020_1_OR_NEWER
+            if (UnityEngine.InputSystem.Pointer.current != null)
+            {
+                return UnityEngine.InputSystem.Pointer.current.press.isPressed;
+            }
+#endif
+            return Input.GetMouseButton(0);
+        }
+
+        private bool IsPointerReleasedThisFrame()
+        {
+#if ENABLE_INPUT_SYSTEM || UNITY_2020_1_OR_NEWER
+            if (UnityEngine.InputSystem.Pointer.current != null)
+            {
+                return UnityEngine.InputSystem.Pointer.current.press.wasReleasedThisFrame;
+            }
+#endif
+            return Input.GetMouseButtonUp(0);
+        }
+
         private void Update()
         {
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
             if (activeSoldier == null || activeSoldier.IsDead || activeSoldier.hasFiredThisTurn) return;
 
-            Vector2 mouseWorldPos = mainCamera.ScreenToWorldPoint(Input.mousePosition);
-
-            if (Input.GetMouseButtonDown(0))
+            if (mainCamera == null)
             {
-                // Check if user clicked near active soldier
+                mainCamera = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
+            }
+            if (mainCamera == null) return;
+
+            Vector2 pointerScreenPos = GetPointerScreenPosition();
+            Vector3 worldPos3D = mainCamera.ScreenToWorldPoint(new Vector3(pointerScreenPos.x, pointerScreenPos.y, -mainCamera.transform.position.z));
+            Vector2 mouseWorldPos = (Vector2)worldPos3D;
+
+            if (IsPointerPressedThisFrame())
+            {
+                // Check if user clicked anywhere on screen or near active soldier
                 float distToSoldier = Vector2.Distance(mouseWorldPos, activeSoldier.transform.position);
-                if (distToSoldier < 2f)
+                if (distToSoldier < 6f || activeSoldier != null)
                 {
                     isDragging = true;
                     dragStartPosition = activeSoldier.transform.position;
@@ -103,7 +160,7 @@ namespace CastleBusters.Combat
                     trajectoryPredictor.ShowTrajectory(activeSoldier.transform.position, launchVelocity);
                 }
 
-                if (Input.GetMouseButtonUp(0))
+                if (IsPointerReleasedThisFrame() || !IsPointerIsPressed())
                 {
                     isDragging = false;
                     if (trajectoryPredictor != null) trajectoryPredictor.HideTrajectory();
