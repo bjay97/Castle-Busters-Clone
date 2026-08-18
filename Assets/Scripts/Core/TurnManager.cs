@@ -42,6 +42,11 @@ namespace CastleBusters.Core
             else Destroy(gameObject);
         }
 
+        private void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
+        }
+
         public void StartTurn(PlayerSide side)
         {
             activePlayer = side;

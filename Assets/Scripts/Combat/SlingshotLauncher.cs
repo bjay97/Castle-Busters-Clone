@@ -202,6 +202,13 @@ namespace CastleBusters.Combat
                 {
                     isDragging = true;
                     dragStartPosition = activeSoldier.transform.position;
+
+                    // Hide Player 1's facade while actively aiming so player sees soldier and trajectory clearly
+                    if (GameManager.Instance != null && GameManager.Instance.player1Castle != null)
+                    {
+                        CastleFacadeVisibility vis = GameManager.Instance.player1Castle.GetComponentInChildren<CastleFacadeVisibility>();
+                        if (vis != null) vis.SetAimingHideState(true);
+                    }
                 }
             }
 
@@ -226,6 +233,13 @@ namespace CastleBusters.Combat
                 {
                     isDragging = false;
                     if (trajectoryPredictor != null) trajectoryPredictor.HideTrajectory();
+
+                    // Restore 100% full opaque facade when aim release occurs
+                    if (GameManager.Instance != null && GameManager.Instance.player1Castle != null)
+                    {
+                        CastleFacadeVisibility vis = GameManager.Instance.player1Castle.GetComponentInChildren<CastleFacadeVisibility>();
+                        if (vis != null) vis.SetAimingHideState(false);
+                    }
 
                     if (dragVector.magnitude > 0.3f)
                     {

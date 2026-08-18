@@ -69,12 +69,16 @@ namespace CastleBusters.Environment
             {
                 for (int c = 0; c < columns; c++)
                 {
-                    // Tight position calculation (zero gaps)
-                    Vector2 pos = startPos + new Vector2(c * chunkWidth, r * chunkHeight);
+                    // Tight local position calculation relative to parent facade transform
+                    Vector3 localPos = new Vector3(
+                        -totalWidth / 2f + chunkWidth / 2f + (c * chunkWidth),
+                        -totalHeight / 2f + chunkHeight / 2f + (r * chunkHeight),
+                        0f
+                    );
 
                     GameObject chunk = new GameObject($"Chunk_{c}_{r}");
-                    chunk.transform.position = pos;
                     chunk.transform.SetParent(transform);
+                    chunk.transform.localPosition = localPos;
 
                     // Add SpriteRenderer
                     SpriteRenderer sr = chunk.AddComponent<SpriteRenderer>();
@@ -82,7 +86,6 @@ namespace CastleBusters.Environment
                     if (slicedSprites != null && slicedSprites[c, r] != null)
                     {
                         sr.sprite = slicedSprites[c, r];
-                        // Match sprite size to chunk dimensions exactly
                         float spriteW = sr.sprite.bounds.size.x;
                         float spriteH = sr.sprite.bounds.size.y;
                         if (spriteW > 0 && spriteH > 0)
@@ -92,7 +95,6 @@ namespace CastleBusters.Environment
                     }
                     else
                     {
-                        // Fallback square sprite
                         sr.sprite = CreateDefaultSquareSprite();
                         sr.color = fallbackColor;
                         chunk.transform.localScale = new Vector3(chunkWidth, chunkHeight, 1f);
@@ -100,11 +102,9 @@ namespace CastleBusters.Environment
 
                     sr.sortingOrder = 2;
 
-                    // Add BoxCollider2D (no Rigidbody2D required on static micro-blocks, eliminating physics transform overhead)
                     BoxCollider2D col = chunk.AddComponent<BoxCollider2D>();
-                    col.size = Vector2.one; // Fit sprite bounds perfectly
+                    col.size = Vector2.one;
 
-                    // Add DestructibleBlock
                     DestructibleBlock block = chunk.AddComponent<DestructibleBlock>();
                     block.materialType = materialType;
                     block.maxHealth = blockHealth;
@@ -118,12 +118,12 @@ namespace CastleBusters.Environment
                 }
             }
 
-            // Auto-refresh parent Castle health calculation
             Castle parentCastle = GetComponentInParent<Castle>();
-            if (parentCastle != null)
-            {
-                parentCastle.RefreshCastleHealth();
-            }
+            if (parentCastle != null) parentCastle.RefreshCastleHealth();
+
+            CastleFacadeVisibility visibility = GetComponent<CastleFacadeVisibility>();
+            if (visibility == null) visibility = GetComponentInParent<CastleFacadeVisibility>();
+            if (visibility != null) visibility.RefreshVisibility();
 
             Debug.Log($"[FacadeGridBuilder] Successfully generated tight castle facade with {columns * rows} sliced blocks!");
         }
@@ -135,7 +135,9 @@ namespace CastleBusters.Environment
             if (isEvaluatingCollapse || !Application.isPlaying) return;
             isEvaluatingCollapse = true;
 
-            // Find all active remaining DestructibleBlock components efficiently
+            float chunkW = totalWidth / columns;
+            float chunkH = totalHeight / rows;
+
             DestructibleBlock[] allBlocks = GetComponentsInChildren<DestructibleBlock>();
             if (allBlocks == null || allBlocks.Length == 0)
             {
@@ -148,8 +150,11 @@ namespace CastleBusters.Environment
             {
                 if (b != null && !b.IsDestroyed && b.gameObject.activeInHierarchy)
                 {
-                    int c = Mathf.Clamp(Mathf.FloorToInt((b.transform.localPosition.x + totalWidth / 2f) / (totalWidth / columns)), 0, columns - 1);
-                    int r = Mathf.Clamp(Mathf.FloorToInt((b.transform.localPosition.y + totalHeight / 2f) / (totalHeight / rows)), 0, rows - 1);
+                    float localX = b.transform.localPosition.x + totalWidth / 2f;
+                    float localY = b.transform.localPosition.y + totalHeight / 2f;
+
+                    int c = Mathf.Clamp(Mathf.FloorToInt(localX / chunkW), 0, columns - 1);
+                    int r = Mathf.Clamp(Mathf.FloorToInt(localY / chunkH), 0, rows - 1);
                     grid[c, r] = b;
                 }
             }

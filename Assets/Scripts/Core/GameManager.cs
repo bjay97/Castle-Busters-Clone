@@ -23,6 +23,11 @@ namespace CastleBusters.Core
             else Destroy(gameObject);
         }
 
+        private void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
+        }
+
         private void Start()
         {
             InitializeGame();
