@@ -274,7 +274,7 @@ namespace CastleBusters.Combat
             }
         }
 
-        private void SpawnSingleMissile(Soldier soldier, Vector2 launchVelocity)
+        private void SpawnSingleMissile(Soldier soldier, Vector2 launchVelocity, bool trackCamera = true)
         {
             Vector3 spawnPos = soldier.transform.position + (Vector3)(launchVelocity.normalized * 0.8f);
             GameObject projObj = Instantiate(soldier.projectilePrefab, spawnPos, Quaternion.identity);
@@ -292,8 +292,8 @@ namespace CastleBusters.Combat
                 rb.linearVelocity = launchVelocity;
             }
 
-            // Smoothly track projectile with camera in real-time
-            if (CameraController.Instance != null && CameraController.Instance.currentTarget == null)
+            // Smoothly track lead/midway player projectile with camera in real-time
+            if (trackCamera && CameraController.Instance != null)
             {
                 CameraController.Instance.FollowProjectile(projObj.transform);
             }
@@ -316,7 +316,9 @@ namespace CastleBusters.Combat
 
                 Vector2 salvoVel = new Vector2(Mathf.Cos(randomAngle * Mathf.Deg2Rad), Mathf.Sin(randomAngle * Mathf.Deg2Rad)) * speed;
 
-                SpawnSingleMissile(soldier, salvoVel);
+                // Lock camera onto the 1st (i == 0) or midway (i == 3) projectile to lead the salvo barrage
+                bool trackThisMissile = (i == 0 || i == 3);
+                SpawnSingleMissile(soldier, salvoVel, trackThisMissile);
 
                 float currentInterval = Mathf.Max(0.03f, interval + Random.Range(-0.02f, 0.02f));
                 yield return new WaitForSeconds(currentInterval);

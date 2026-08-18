@@ -57,6 +57,16 @@ namespace CastleBusters.UI
 
         private void Start()
         {
+            // Auto-ensure EventSystem exists so UI button clicks always work
+            if (UnityEngine.EventSystems.EventSystem.current == null)
+            {
+                GameObject es = new GameObject("EventSystem");
+                es.AddComponent<UnityEngine.EventSystems.EventSystem>();
+                es.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+            }
+
+            EnsureNonBlockingPanels();
+
             if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
             if (loadingPanel != null)
@@ -212,18 +222,22 @@ namespace CastleBusters.UI
                 if (p1Vis != null) p1Vis.SetFacadeVisibility(true); // 100% OPAQUE at start of turn
             }
 
+            if (CameraController.Instance != null) CameraController.Instance.SetMode(CameraMode.Player1Castle);
+
             yield return new WaitForSeconds(2.5f);
 
-            // 2. PHASE 2: Clear up facade & Show Bottom-Left Movement Controls
-            if (p1Vis != null) p1Vis.SetFacadeVisibility(false); // Clear facade so room is visible
+            // 2. PHASE 2: DRIVING PHASE
+            // Keep facade VISIBLE while driving (as requested!)
+            if (p1Vis != null) p1Vis.SetFacadeVisibility(true);
+
+            // Zoom out camera somewhat while moving castle (as requested!)
+            if (CameraController.Instance != null) CameraController.Instance.SetMode(CameraMode.DrivingCastle);
 
             if (movementPanel != null) movementPanel.SetActive(true);
 
-            // Setup Movement Button listeners
             CastleMovement p1Movement = GameManager.Instance?.player1Castle?.GetComponent<CastleMovement>();
             SetupMovementButtons(p1Movement);
 
-            // Wait until user clicks "Done Moving" or moves & stops
             bool doneMoving = false;
             if (doneMovingBtn != null)
             {
@@ -231,7 +245,6 @@ namespace CastleBusters.UI
                 doneMovingBtn.onClick.AddListener(() => doneMoving = true);
             }
 
-            // Allow driving phase for up to 8 seconds or until Done Moving clicked
             float driveTimer = 0f;
             while (!doneMoving && driveTimer < 8.0f)
             {
@@ -242,8 +255,17 @@ namespace CastleBusters.UI
             if (movementPanel != null) movementPanel.SetActive(false);
             if (p1Movement != null) p1Movement.ReleaseMove();
 
-            // 3. PHASE 3: Show Bottom-Center Soldier Selection Controls
+            // 3. PHASE 3: SOLDIER SELECTION PHASE
+            if (p1Vis != null) p1Vis.SetFacadeVisibility(false);
+            if (CameraController.Instance != null) CameraController.Instance.SetMode(CameraMode.SoldierSelection);
             if (soldierSelectPanel != null) soldierSelectPanel.SetActive(true);
+
+            // Keep Movement Panel active alongside Soldier Selection if fuel is remaining!
+            if (p1Movement != null && p1Movement.currentFuel > 0f)
+            {
+                if (movementPanel != null) movementPanel.SetActive(true);
+                SetupMovementButtons(p1Movement);
+            }
 
             Castle p1Castle = GameManager.Instance?.player1Castle;
             SlingshotLauncher launcher = FindFirstObjectByType<SlingshotLauncher>();
@@ -272,6 +294,29 @@ namespace CastleBusters.UI
             // Wait until user selects a soldier via bottom-center buttons
             while (chosenSoldier == null)
             {
+                // Dynamic driving state during soldier selection!
+                if (p1Movement != null && p1Movement.IsActivelyMoving)
+                {
+                    // Zoom out to DrivingCastle mode and show solid facade while driving!
+                    if (CameraController.Instance != null) CameraController.Instance.SetMode(CameraMode.DrivingCastle);
+                    if (p1Vis != null) p1Vis.SetFacadeVisibility(true);
+                }
+                else
+                {
+                    // Zoom back in to SoldierSelection mode and clear facade when stopped!
+                    if (CameraController.Instance != null && CameraController.Instance.currentMode == CameraMode.DrivingCastle)
+                    {
+                        CameraController.Instance.SetMode(CameraMode.SoldierSelection);
+                    }
+                    if (p1Vis != null) p1Vis.SetFacadeVisibility(false);
+                }
+
+                // Auto hide movement panel if fuel empties during soldier selection
+                if (p1Movement != null && p1Movement.currentFuel <= 0f && movementPanel != null)
+                {
+                    movementPanel.SetActive(false);
+                }
+
                 // Fallback auto-select if buttons not wired in scene
                 if (soldierSelectPanel == null || (!soldier1Btn && !soldier2Btn))
                 {
@@ -287,7 +332,15 @@ namespace CastleBusters.UI
                 yield return null;
             }
 
+            if (movementPanel != null) movementPanel.SetActive(false);
             if (soldierSelectPanel != null) soldierSelectPanel.SetActive(false);
+            if (p1Movement != null) p1Movement.ReleaseMove();
+
+            // Smoothly pan camera directly to the clicked active soldier (as requested!)
+            if (CameraController.Instance != null && chosenSoldier != null)
+            {
+                CameraController.Instance.FocusSoldier(chosenSoldier.transform);
+            }
 
             // 4. PHASE 4: Enable Trajectory Prediction & Aiming ONLY after soldier selected!
             if (launcher != null && chosenSoldier != null)
@@ -296,9 +349,26 @@ namespace CastleBusters.UI
             }
         }
 
+        private void EnsureNonBlockingPanels()
+        {
+            if (movementPanel != null)
+            {
+                Image img = movementPanel.GetComponent<Image>();
+                if (img != null) img.raycastTarget = false;
+            }
+
+            if (soldierSelectPanel != null)
+            {
+                Image img = soldierSelectPanel.GetComponent<Image>();
+                if (img != null) img.raycastTarget = false;
+            }
+        }
+
         private void SetupMovementButtons(CastleMovement movement)
         {
             if (movement == null) return;
+
+            EnsureNonBlockingPanels();
 
             if (moveLeftBtn != null)
             {
@@ -313,6 +383,10 @@ namespace CastleBusters.UI
                 var up = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp };
                 up.callback.AddListener((data) => movement.ReleaseMove());
                 trigger.triggers.Add(up);
+
+                var exit = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerExit };
+                exit.callback.AddListener((data) => movement.ReleaseMove());
+                trigger.triggers.Add(exit);
             }
 
             if (moveRightBtn != null)
@@ -328,6 +402,10 @@ namespace CastleBusters.UI
                 var up = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp };
                 up.callback.AddListener((data) => movement.ReleaseMove());
                 trigger.triggers.Add(up);
+
+                var exit = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerExit };
+                exit.callback.AddListener((data) => movement.ReleaseMove());
+                trigger.triggers.Add(exit);
             }
         }
 

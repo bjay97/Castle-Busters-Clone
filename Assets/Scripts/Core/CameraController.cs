@@ -8,6 +8,9 @@ namespace CastleBusters.Core
     {
         Player1Castle,
         Player2Castle,
+        DrivingCastle,
+        SoldierSelection,
+        FocusSoldier,
         FollowTarget,
         FullOverview
     }
@@ -27,8 +30,11 @@ namespace CastleBusters.Core
 
         [Header("Orthographic Zoom Settings")]
         public float castleFocusZoom = 6.0f;
-        public float followTargetZoom = 5.0f;
-        public float overviewZoom = 11.0f;
+        public float movementZoom = 11.5f;       // Significantly zoomed out wide view while driving castle
+        public float soldierSelectZoom = 5.2f;    // Slightly zoomed in during soldier select
+        public float soldierFocusZoom = 3.8f;     // Smooth close-up pan on active soldier
+        public float followTargetZoom = 8.5f;     // Significantly zoomed out wide view while tracking missiles
+        public float overviewZoom = 13.0f;
         public float zoomSmoothTime = 0.3f;
 
         [Header("Smooth Damping Settings")]
@@ -36,10 +42,10 @@ namespace CastleBusters.Core
         public Vector3 cameraOffset = new Vector3(0f, 1.2f, -10f);
 
         [Header("Camera Arena Bounds")]
-        public float minX = -12f;
-        public float maxX = 12f;
-        public float minY = -1f;
-        public float maxY = 8f;
+        public float minX = -16f;
+        public float maxX = 16f;
+        public float minY = -2f;
+        public float maxY = 12f;
 
         private Camera cam;
         private Vector3 velocity = Vector3.zero;
@@ -51,6 +57,8 @@ namespace CastleBusters.Core
             else Destroy(gameObject);
 
             cam = GetComponent<Camera>();
+            if (cam == null) cam = Camera.main;
+            if (cam == null) cam = FindFirstObjectByType<Camera>();
         }
 
         private void OnDestroy()
@@ -92,6 +100,12 @@ namespace CastleBusters.Core
             currentMode = CameraMode.FollowTarget;
         }
 
+        public void FocusSoldier(Transform soldierTransform)
+        {
+            currentTarget = soldierTransform;
+            currentMode = CameraMode.FocusSoldier;
+        }
+
         public void FocusCastle(PlayerSide side)
         {
             currentMode = (side == PlayerSide.Player1) ? CameraMode.Player1Castle : CameraMode.Player2Castle;
@@ -106,6 +120,9 @@ namespace CastleBusters.Core
 
         private void LateUpdate()
         {
+            if (cam == null) cam = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
+            if (cam == null) return;
+
             FindCastleTransforms();
 
             Vector3 targetPosition = transform.position;
@@ -121,6 +138,29 @@ namespace CastleBusters.Core
                 case CameraMode.Player2Castle:
                     if (player2CastleTransform != null) targetPosition = player2CastleTransform.position + cameraOffset;
                     targetZoom = castleFocusZoom;
+                    break;
+
+                case CameraMode.DrivingCastle:
+                    if (player1CastleTransform != null) targetPosition = player1CastleTransform.position + cameraOffset;
+                    targetZoom = movementZoom;
+                    break;
+
+                case CameraMode.SoldierSelection:
+                    if (player1CastleTransform != null) targetPosition = player1CastleTransform.position + cameraOffset;
+                    targetZoom = soldierSelectZoom;
+                    break;
+
+                case CameraMode.FocusSoldier:
+                    if (currentTarget != null)
+                    {
+                        targetPosition = currentTarget.position + cameraOffset;
+                        targetZoom = soldierFocusZoom;
+                    }
+                    else
+                    {
+                        if (player1CastleTransform != null) targetPosition = player1CastleTransform.position + cameraOffset;
+                        targetZoom = soldierSelectZoom;
+                    }
                     break;
 
                 case CameraMode.FollowTarget:
@@ -151,8 +191,17 @@ namespace CastleBusters.Core
             // Smooth Position Transition
             transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref velocity, positionSmoothTime);
 
-            // Smooth Zoom (Orthographic Size) Transition
-            cam.orthographicSize = Mathf.SmoothDamp(cam.orthographicSize, targetZoom, ref zoomVelocity, zoomSmoothTime);
+            // Smooth Zoom (Orthographic & Perspective support)
+            if (cam.orthographic)
+            {
+                cam.orthographicSize = Mathf.SmoothDamp(cam.orthographicSize, targetZoom, ref zoomVelocity, zoomSmoothTime);
+            }
+            else
+            {
+                // Perspective Camera Fallback: map orthographic size to Perspective Field of View
+                float targetFOV = Mathf.Clamp(targetZoom * 6.5f, 20f, 85f);
+                cam.fieldOfView = Mathf.SmoothDamp(cam.fieldOfView, targetFOV, ref zoomVelocity, zoomSmoothTime);
+            }
         }
     }
 }
