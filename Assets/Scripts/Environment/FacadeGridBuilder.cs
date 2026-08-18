@@ -115,6 +115,10 @@ namespace CastleBusters.Environment
                     block.currentHealth = blockHealth;
                     block.isAttachedToFrame = true;
                     block.spawnDebrisOnDestroy = true;
+
+                    int colIndex = c;
+                    int rowIndex = r;
+                    block.OnBlockDestroyed += () => CheckStructuralCollapse(colIndex, rowIndex);
                 }
             }
 
@@ -126,6 +130,92 @@ namespace CastleBusters.Environment
             }
 
             Debug.Log($"[FacadeGridBuilder] Successfully generated tight castle facade with {columns * rows} sliced blocks!");
+        }
+
+        private bool isEvaluatingCollapse = false;
+
+        public void CheckStructuralCollapse(int destroyedCol, int destroyedRow)
+        {
+            if (isEvaluatingCollapse || !Application.isPlaying) return;
+            isEvaluatingCollapse = true;
+
+            // Find all active blocks in grid
+            DestructibleBlock[,] grid = new DestructibleBlock[columns, rows];
+            DestructibleBlock[] allBlocks = GetComponentsInChildren<DestructibleBlock>();
+
+            foreach (var b in allBlocks)
+            {
+                if (b != null && !b.IsDestroyed)
+                {
+                    // Match position to grid coords
+                    int c = Mathf.Clamp(Mathf.FloorToInt((b.transform.localPosition.x + totalWidth / 2f) / (totalWidth / columns)), 0, columns - 1);
+                    int r = Mathf.Clamp(Mathf.FloorToInt((b.transform.localPosition.y + totalHeight / 2f) / (totalHeight / rows)), 0, rows - 1);
+                    grid[c, r] = b;
+                }
+            }
+
+            // BFS from bottom row (r = 0) to find all ground-connected blocks
+            bool[,] isAnchored = new bool[columns, rows];
+            System.Collections.Generic.Queue<Vector2Int> queue = new System.Collections.Generic.Queue<Vector2Int>();
+
+            for (int c = 0; c < columns; c++)
+            {
+                if (grid[c, 0] != null && !grid[c, 0].IsDestroyed)
+                {
+                    isAnchored[c, 0] = true;
+                    queue.Enqueue(new Vector2Int(c, 0));
+                }
+            }
+
+            Vector2Int[] directions = new Vector2Int[]
+            {
+                new Vector2Int(0, 1),  // Up
+                new Vector2Int(0, -1), // Down
+                new Vector2Int(1, 0),  // Right
+                new Vector2Int(-1, 0)  // Left
+            };
+
+            while (queue.Count > 0)
+            {
+                Vector2Int current = queue.Dequeue();
+
+                foreach (var dir in directions)
+                {
+                    int nc = current.x + dir.x;
+                    int nr = current.y + dir.y;
+
+                    if (nc >= 0 && nc < columns && nr >= 0 && nr < rows)
+                    {
+                        if (grid[nc, nr] != null && !grid[nc, nr].IsDestroyed && !isAnchored[nc, nr])
+                        {
+                            isAnchored[nc, nr] = true;
+                            queue.Enqueue(new Vector2Int(nc, nr));
+                        }
+                    }
+                }
+            }
+
+            // Collapse all unanchored floating blocks!
+            bool collapsedAny = false;
+            for (int r = 0; r < rows; r++)
+            {
+                for (int c = 0; c < columns; c++)
+                {
+                    if (grid[c, r] != null && !grid[c, r].IsDestroyed && !isAnchored[c, r])
+                    {
+                        collapsedAny = true;
+                        Destroy(grid[c, r].gameObject);
+                    }
+                }
+            }
+
+            if (collapsedAny)
+            {
+                Castle parentCastle = GetComponentInParent<Castle>();
+                if (parentCastle != null) parentCastle.RefreshCastleHealth();
+            }
+
+            isEvaluatingCollapse = false;
         }
 
         private Sprite[,] SliceTextureIntoSprites(Texture2D tex, int cols, int rows)
