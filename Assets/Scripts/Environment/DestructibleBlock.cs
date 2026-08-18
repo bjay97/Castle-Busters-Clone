@@ -9,7 +9,7 @@ namespace CastleBusters.Environment
         Stone
     }
 
-    [RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))]
+    [RequireComponent(typeof(Collider2D))]
     public class DestructibleBlock : MonoBehaviour
     {
         [Header("Block Attributes")]

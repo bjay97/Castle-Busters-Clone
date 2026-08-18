@@ -64,6 +64,26 @@ namespace CastleBusters.AI
 
             if (aiSoldier != null && aiSoldier.projectilePrefab != null)
             {
+                // Optionally drive AI castle slightly to reposition before aiming
+                Castle aiCastle = (aiSide == PlayerSide.Player1) ? GameManager.Instance?.player1Castle : GameManager.Instance?.player2Castle;
+                if (aiCastle != null)
+                {
+                    CastleMovement aiMovement = aiCastle.GetComponent<CastleMovement>();
+                    if (aiMovement != null && Random.value < 0.65f && aiMovement.currentFuel > 20f)
+                    {
+                        float driveDir = (Random.value < 0.5f) ? -1f : 1f;
+                        float driveTime = Random.Range(0.6f, 1.2f);
+                        float elapsed = 0f;
+                        while (elapsed < driveTime && aiMovement.currentFuel > 0f)
+                        {
+                            elapsed += Time.deltaTime;
+                            aiMovement.MoveCastle(driveDir);
+                            yield return null;
+                        }
+                        yield return new WaitForSeconds(0.3f);
+                    }
+                }
+
                 float randomAngle = Random.Range(minLaunchAngle, maxLaunchAngle) * Mathf.Deg2Rad;
                 float randomForce = Random.Range(minLaunchForce, maxLaunchForce);
                 Vector2 launchVelocity = new Vector2(Mathf.Cos(randomAngle), Mathf.Sin(randomAngle)) * randomForce;

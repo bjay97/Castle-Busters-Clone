@@ -14,6 +14,7 @@ namespace CastleBusters.Combat
 
         [Header("Active Aiming State")]
         public Soldier activeSoldier;
+        public bool isAimingAllowed = false;
 
         private bool isDragging = false;
         private Vector2 dragStartPosition;
@@ -75,17 +76,24 @@ namespace CastleBusters.Combat
             }
         }
 
-        public void SelectSoldier(Soldier soldier)
+        public void EnableAimingForSoldier(Soldier soldier)
         {
             if (soldier != null && !soldier.IsDead && !soldier.hasFiredThisTurn)
             {
                 activeSoldier = soldier;
+                isAimingAllowed = true;
             }
+        }
+
+        public void SelectSoldier(Soldier soldier)
+        {
+            EnableAimingForSoldier(soldier);
         }
 
         private void AutoSelectSoldierForTurn(PlayerSide activeSide)
         {
             activeSoldier = null;
+            isAimingAllowed = false;
 
             Castle activeCastle = (activeSide == PlayerSide.Player1) 
                 ? GameManager.Instance?.player1Castle 
@@ -179,10 +187,7 @@ namespace CastleBusters.Combat
         private void Update()
         {
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
-            if (activeSoldier == null || activeSoldier.IsDead || activeSoldier.hasFiredThisTurn)
-            {
-                FindAndSelectPlayer1Soldier();
-            }
+            if (!isAimingAllowed) return;
             if (activeSoldier == null || activeSoldier.IsDead || activeSoldier.hasFiredThisTurn) return;
 
             if (mainCamera == null)
@@ -202,6 +207,13 @@ namespace CastleBusters.Combat
                 {
                     isDragging = true;
                     dragStartPosition = activeSoldier.transform.position;
+
+                    // Hide Player 1's facade while actively aiming so player sees soldier and trajectory clearly
+                    if (GameManager.Instance != null && GameManager.Instance.player1Castle != null)
+                    {
+                        CastleFacadeVisibility vis = GameManager.Instance.player1Castle.GetComponentInChildren<CastleFacadeVisibility>();
+                        if (vis != null) vis.SetAimingHideState(true);
+                    }
                 }
             }
 
@@ -227,6 +239,13 @@ namespace CastleBusters.Combat
                     isDragging = false;
                     if (trajectoryPredictor != null) trajectoryPredictor.HideTrajectory();
 
+                    // Restore 100% full opaque facade when aim release occurs
+                    if (GameManager.Instance != null && GameManager.Instance.player1Castle != null)
+                    {
+                        CastleFacadeVisibility vis = GameManager.Instance.player1Castle.GetComponentInChildren<CastleFacadeVisibility>();
+                        if (vis != null) vis.SetAimingHideState(false);
+                    }
+
                     if (dragVector.magnitude > 0.3f)
                     {
                         FireProjectile(launchVelocity);
@@ -242,6 +261,7 @@ namespace CastleBusters.Combat
             Soldier firingSoldier = activeSoldier;
             firingSoldier.hasFiredThisTurn = true;
             activeSoldier = null;
+            isAimingAllowed = false;
 
             if (firingSoldier.fireMode == FireMode.RapidSalvo)
             {
