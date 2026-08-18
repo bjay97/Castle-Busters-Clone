@@ -11,6 +11,12 @@ namespace CastleBusters.Units
         ClusterMissile
     }
 
+    public enum FireMode
+    {
+        SingleMissile,
+        RapidSalvo
+    }
+
     public enum CastleSlotPosition
     {
         UpperLeft,
@@ -28,15 +34,19 @@ namespace CastleBusters.Units
         public SoldierType unitType;
         public CastleSlotPosition slotPosition;
 
+        [Header("Abilities & Fire Mode")]
+        public FireMode fireMode = FireMode.SingleMissile;
+        public GameObject projectilePrefab;
+        public int salvoCount = 14; // 10 to 16 missiles sent at 0.1s intervals
+        public float salvoInterval = 0.1f;
+        public float salvoSpreadAngle = 6f;
+        public float launchForceMultiplier = 12f;
+        public bool hasFiredThisTurn = false;
+
         [Header("Health")]
         public float maxHealth = 100f;
         public float currentHealth;
         public bool IsDead => currentHealth <= 0;
-
-        [Header("Abilities & Projectiles")]
-        public GameObject projectilePrefab;
-        public float launchForceMultiplier = 12f;
-        public bool hasFiredThisTurn = false;
 
         [Header("Collision Sensitivity")]
         public float minImpactForceToDamage = 3f;

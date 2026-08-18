@@ -239,13 +239,28 @@ namespace CastleBusters.Combat
         {
             if (activeSoldier == null || activeSoldier.projectilePrefab == null) return;
 
-            // Spawn slightly offset from soldier in launch direction
-            Vector3 spawnPos = activeSoldier.transform.position + (Vector3)(launchVelocity.normalized * 0.8f);
-            GameObject projObj = Instantiate(activeSoldier.projectilePrefab, spawnPos, Quaternion.identity);
+            Soldier firingSoldier = activeSoldier;
+            firingSoldier.hasFiredThisTurn = true;
+            activeSoldier = null;
 
-            // Ignore collision between launching soldier and projectile so projectile doesn't explode on self
+            if (firingSoldier.fireMode == FireMode.RapidSalvo)
+            {
+                StartCoroutine(FireSalvoRoutine(firingSoldier, launchVelocity));
+            }
+            else
+            {
+                SpawnSingleMissile(firingSoldier, launchVelocity);
+                if (TurnManager.Instance != null) TurnManager.Instance.RegisterActionFired();
+            }
+        }
+
+        private void SpawnSingleMissile(Soldier soldier, Vector2 launchVelocity)
+        {
+            Vector3 spawnPos = soldier.transform.position + (Vector3)(launchVelocity.normalized * 0.8f);
+            GameObject projObj = Instantiate(soldier.projectilePrefab, spawnPos, Quaternion.identity);
+
             Collider2D projCol = projObj.GetComponent<Collider2D>();
-            Collider2D soldierCol = activeSoldier.GetComponent<Collider2D>();
+            Collider2D soldierCol = soldier.GetComponent<Collider2D>();
             if (projCol != null && soldierCol != null)
             {
                 Physics2D.IgnoreCollision(projCol, soldierCol);
@@ -256,9 +271,30 @@ namespace CastleBusters.Combat
             {
                 rb.linearVelocity = launchVelocity;
             }
+        }
 
-            activeSoldier.hasFiredThisTurn = true;
-            activeSoldier = null;
+        private System.Collections.IEnumerator FireSalvoRoutine(Soldier soldier, Vector2 baseLaunchVelocity)
+        {
+            int count = Mathf.Clamp(soldier.salvoCount, 10, 16);
+            float interval = Mathf.Clamp(soldier.salvoInterval, 0.05f, 0.2f);
+            float spread = soldier.salvoSpreadAngle;
+
+            for (int i = 0; i < count; i++)
+            {
+                if (soldier == null) break;
+
+                float baseAngle = Mathf.Atan2(baseLaunchVelocity.y, baseLaunchVelocity.x) * Mathf.Rad2Deg;
+                float randomAngle = baseAngle + Random.Range(-spread, spread);
+                float randomSpeedMult = Random.Range(0.92f, 1.08f);
+                float speed = baseLaunchVelocity.magnitude * randomSpeedMult;
+
+                Vector2 salvoVel = new Vector2(Mathf.Cos(randomAngle * Mathf.Deg2Rad), Mathf.Sin(randomAngle * Mathf.Deg2Rad)) * speed;
+
+                SpawnSingleMissile(soldier, salvoVel);
+
+                float currentInterval = Mathf.Max(0.03f, interval + Random.Range(-0.02f, 0.02f));
+                yield return new WaitForSeconds(currentInterval);
+            }
 
             if (TurnManager.Instance != null)
             {

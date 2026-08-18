@@ -64,33 +64,22 @@ namespace CastleBusters.AI
 
             if (aiSoldier != null && aiSoldier.projectilePrefab != null)
             {
-                // Calculate randomized trajectory angle & force towards Player 1
                 float randomAngle = Random.Range(minLaunchAngle, maxLaunchAngle) * Mathf.Deg2Rad;
                 float randomForce = Random.Range(minLaunchForce, maxLaunchForce);
-
                 Vector2 launchVelocity = new Vector2(Mathf.Cos(randomAngle), Mathf.Sin(randomAngle)) * randomForce;
-
-                // Spawn projectile with offset
-                Vector3 spawnPos = aiSoldier.transform.position + (Vector3)(launchVelocity.normalized * 0.8f);
-                GameObject projObj = Instantiate(aiSoldier.projectilePrefab, spawnPos, Quaternion.identity);
-
-                // Prevent self-damage
-                Collider2D projCol = projObj.GetComponent<Collider2D>();
-                Collider2D soldierCol = aiSoldier.GetComponent<Collider2D>();
-                if (projCol != null && soldierCol != null)
-                {
-                    Physics2D.IgnoreCollision(projCol, soldierCol);
-                }
-
-                Rigidbody2D rb = projObj.GetComponent<Rigidbody2D>();
-                if (rb != null)
-                {
-                    rb.linearVelocity = launchVelocity;
-                }
 
                 aiSoldier.hasFiredThisTurn = true;
 
-                Debug.Log($"[SimpleBotAI] AI launched {aiSoldier.soldierName}'s missile with velocity {launchVelocity}");
+                if (aiSoldier.fireMode == FireMode.RapidSalvo)
+                {
+                    yield return StartCoroutine(FireAISalvoRoutine(aiSoldier, launchVelocity));
+                }
+                else
+                {
+                    SpawnAISingleMissile(aiSoldier, launchVelocity);
+                }
+
+                Debug.Log($"[SimpleBotAI] AI launched {aiSoldier.soldierName}'s attack.");
 
                 if (TurnManager.Instance != null)
                 {
@@ -103,6 +92,49 @@ namespace CastleBusters.AI
             }
 
             isExecutingTurn = false;
+        }
+
+        private void SpawnAISingleMissile(Soldier soldier, Vector2 launchVelocity)
+        {
+            Vector3 spawnPos = soldier.transform.position + (Vector3)(launchVelocity.normalized * 0.8f);
+            GameObject projObj = Instantiate(soldier.projectilePrefab, spawnPos, Quaternion.identity);
+
+            Collider2D projCol = projObj.GetComponent<Collider2D>();
+            Collider2D soldierCol = soldier.GetComponent<Collider2D>();
+            if (projCol != null && soldierCol != null)
+            {
+                Physics2D.IgnoreCollision(projCol, soldierCol);
+            }
+
+            Rigidbody2D rb = projObj.GetComponent<Rigidbody2D>();
+            if (rb != null)
+            {
+                rb.linearVelocity = launchVelocity;
+            }
+        }
+
+        private IEnumerator FireAISalvoRoutine(Soldier soldier, Vector2 baseLaunchVelocity)
+        {
+            int count = Mathf.Clamp(soldier.salvoCount, 10, 16);
+            float interval = Mathf.Clamp(soldier.salvoInterval, 0.05f, 0.2f);
+            float spread = soldier.salvoSpreadAngle;
+
+            for (int i = 0; i < count; i++)
+            {
+                if (soldier == null) break;
+
+                float baseAngle = Mathf.Atan2(baseLaunchVelocity.y, baseLaunchVelocity.x) * Mathf.Rad2Deg;
+                float randomAngle = baseAngle + Random.Range(-spread, spread);
+                float randomSpeedMult = Random.Range(0.92f, 1.08f);
+                float speed = baseLaunchVelocity.magnitude * randomSpeedMult;
+
+                Vector2 salvoVel = new Vector2(Mathf.Cos(randomAngle * Mathf.Deg2Rad), Mathf.Sin(randomAngle * Mathf.Deg2Rad)) * speed;
+
+                SpawnAISingleMissile(soldier, salvoVel);
+
+                float currentInterval = Mathf.Max(0.03f, interval + Random.Range(-0.02f, 0.02f));
+                yield return new WaitForSeconds(currentInterval);
+            }
         }
 
         private Soldier FindAvailableAISoldier()
