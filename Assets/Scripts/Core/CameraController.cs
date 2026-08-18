@@ -40,6 +40,7 @@ namespace CastleBusters.Core
         [Header("Smooth Damping Settings")]
         public float positionSmoothTime = 0.25f;
         public Vector3 cameraOffset = new Vector3(0f, 1.2f, -10f);
+        public Vector3 aimingOffset = new Vector3(3.8f, 1.0f, -10f); // Shifts camera +3.8 units right towards enemy castle while aiming
 
         [Header("Camera Arena Bounds")]
         public float minX = -16f;
@@ -104,6 +105,19 @@ namespace CastleBusters.Core
         {
             currentTarget = soldierTransform;
             currentMode = CameraMode.FocusSoldier;
+            UpdateDynamicAiming(0f); // Default rest position
+        }
+
+        public void UpdateDynamicAiming(float dragRatio)
+        {
+            float safeRatio = Mathf.Clamp01(dragRatio);
+
+            // Dynamically scale orthographic zoom based on pull strength (4.2 close range -> 8.5 far range)
+            soldierFocusZoom = Mathf.Lerp(4.2f, 8.5f, safeRatio);
+
+            // Dynamically shift camera X offset toward enemy castle based on pull strength (+2.0 close -> +5.5 far)
+            aimingOffset.x = Mathf.Lerp(2.0f, 5.5f, safeRatio);
+            aimingOffset.y = Mathf.Lerp(0.8f, 1.8f, safeRatio);
         }
 
         public void FocusCastle(PlayerSide side)
@@ -153,7 +167,8 @@ namespace CastleBusters.Core
                 case CameraMode.FocusSoldier:
                     if (currentTarget != null)
                     {
-                        targetPosition = currentTarget.position + cameraOffset;
+                        // Shift camera +3.8 units right towards enemy castle while aiming for trajectory visibility!
+                        targetPosition = currentTarget.position + aimingOffset;
                         targetZoom = soldierFocusZoom;
                     }
                     else

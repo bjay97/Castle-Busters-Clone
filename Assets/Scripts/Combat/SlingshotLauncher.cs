@@ -229,6 +229,13 @@ namespace CastleBusters.Combat
 
                 Vector2 launchVelocity = dragVector * launchForceMultiplier;
 
+                // Dynamically update camera zoom & X-offset based on pull distance!
+                float dragRatio = (maxDragDistance > 0f) ? (dragVector.magnitude / maxDragDistance) : 0f;
+                if (CameraController.Instance != null)
+                {
+                    CameraController.Instance.UpdateDynamicAiming(dragRatio);
+                }
+
                 if (trajectoryPredictor != null && dragVector.magnitude > 0.1f)
                 {
                     trajectoryPredictor.ShowTrajectory(activeSoldier.transform.position, launchVelocity);
