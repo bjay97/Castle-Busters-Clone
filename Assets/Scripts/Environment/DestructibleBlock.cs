@@ -27,10 +27,23 @@ namespace CastleBusters.Environment
 
         public bool IsDestroyed => currentHealth <= 0f;
 
+        [Header("Destruction Behavior")]
+        public bool isAttachedToFrame = true;
+        public bool spawnDebrisOnDestroy = true;
+
+        private Rigidbody2D rb;
+
         private void Start()
         {
             currentHealth = maxHealth;
+            rb = GetComponent<Rigidbody2D>();
             if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
+
+            if (isAttachedToFrame && rb != null)
+            {
+                rb.bodyType = RigidbodyType2D.Kinematic;
+                rb.useFullKinematicContacts = true;
+            }
         }
 
         public void TakeDamage(float damage)

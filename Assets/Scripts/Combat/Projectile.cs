@@ -26,7 +26,7 @@ namespace CastleBusters.Combat
             Destroy(gameObject, maxLifetime);
         }
 
-        private void OnCollisionEnter2D(Collision2D collision)
+        protected virtual void OnCollisionEnter2D(Collision2D collision)
         {
             if (hasExploded) return;
 
@@ -71,7 +71,7 @@ namespace CastleBusters.Combat
                 }
 
                 Rigidbody2D hitRb = hit.GetComponent<Rigidbody2D>();
-                if (hitRb != null)
+                if (hitRb != null && hit.GetComponent<Projectile>() == null)
                 {
                     Vector2 dir = (hitRb.transform.position - transform.position).normalized;
                     hitRb.AddForce(dir * splashDamage * 5f, ForceMode2D.Impulse);

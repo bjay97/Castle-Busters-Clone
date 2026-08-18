@@ -24,26 +24,40 @@ namespace CastleBusters.Environment
 
         private void Start()
         {
+            if (GameManager.Instance != null)
+            {
+                if (ownerSide == PlayerSide.Player1) GameManager.Instance.player1Castle = this;
+                else if (ownerSide == PlayerSide.Player2) GameManager.Instance.player2Castle = this;
+            }
+
             InitializeCastle();
         }
 
         public void InitializeCastle()
         {
+            RefreshCastleHealth();
+        }
+
+        public void RefreshCastleHealth()
+        {
             blocks.Clear();
             blocks.AddRange(GetComponentsInChildren<DestructibleBlock>());
 
-            float calculatedMaxHealth = 0f;
+            int totalBlocks = blocks.Count;
+            int intactBlocks = 0;
+
             foreach (var block in blocks)
             {
-                if (block != null)
+                if (block != null && !block.IsDestroyed)
                 {
-                    calculatedMaxHealth += block.maxHealth;
-                    block.OnDamageTaken += HandleBlockDamage;
+                    intactBlocks++;
+                    block.OnBlockDestroyed -= HandleBlockDestroyed; // prevent duplicate
+                    block.OnBlockDestroyed += HandleBlockDestroyed;
                 }
             }
 
-            if (calculatedMaxHealth > 0f) maxCastleHealth = calculatedMaxHealth;
-            currentCastleHealth = maxCastleHealth;
+            maxCastleHealth = Mathf.Max(1f, totalBlocks);
+            currentCastleHealth = intactBlocks;
             OnCastleHealthChanged?.Invoke(currentCastleHealth, maxCastleHealth);
 
             // Register soldiers
@@ -67,11 +81,18 @@ namespace CastleBusters.Environment
             }
         }
 
-        private void HandleBlockDamage(float damage)
+        private void HandleBlockDestroyed()
         {
             if (IsDestroyed) return;
 
-            currentCastleHealth = Mathf.Max(0f, currentCastleHealth - damage);
+            // Recalculate intact blocks accurately
+            int intact = 0;
+            foreach (var block in blocks)
+            {
+                if (block != null && !block.IsDestroyed) intact++;
+            }
+
+            currentCastleHealth = intact;
             OnCastleHealthChanged?.Invoke(currentCastleHealth, maxCastleHealth);
 
             if (IsDestroyed)
@@ -86,18 +107,30 @@ namespace CastleBusters.Environment
 
         public bool AreAllSoldiersDead()
         {
-            foreach (var s in soldiers)
+            Soldier[] allSoldiers = FindObjectsByType<Soldier>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            int totalOwnerSoldiers = 0;
+            int aliveOwnerSoldiers = 0;
+
+            foreach (var s in allSoldiers)
             {
-                if (s != null && !s.IsDead) return false;
+                if (s != null && s.ownerSide == ownerSide)
+                {
+                    totalOwnerSoldiers++;
+                    if (!s.IsDead && s.gameObject.activeInHierarchy)
+                    {
+                        aliveOwnerSoldiers++;
+                    }
+                }
             }
-            return true;
+
+            return (totalOwnerSoldiers > 0 && aliveOwnerSoldiers == 0);
         }
 
         private void OnDestroy()
         {
             foreach (var block in blocks)
             {
-                if (block != null) block.OnDamageTaken -= HandleBlockDamage;
+                if (block != null) block.OnBlockDestroyed -= HandleBlockDestroyed;
             }
         }
     }

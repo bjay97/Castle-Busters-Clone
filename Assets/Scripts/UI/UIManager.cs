@@ -16,11 +16,19 @@ namespace CastleBusters.UI
         public Text actionCounterText;
         public TextMeshProUGUI actionCounterTextTMP;
 
-        [Header("Castle Health Bars")]
+        [Header("Castle Health Bars (Supports Legacy Text or TextMeshPro)")]
         public Image p1CastleHealthFill;
         public Text p1CastleHealthText;
+        public TextMeshProUGUI p1CastleHealthTextTMP;
+
         public Image p2CastleHealthFill;
         public Text p2CastleHealthText;
+        public TextMeshProUGUI p2CastleHealthTextTMP;
+
+        [Header("Castle Movement Fuel Gauge")]
+        public Image fuelBarFill;
+        public Text fuelText;
+        public TextMeshProUGUI fuelTextTMP;
 
         [Header("Game Over Overlay")]
         public GameObject gameOverPanel;
@@ -41,21 +49,62 @@ namespace CastleBusters.UI
             if (GameManager.Instance != null)
             {
                 GameManager.Instance.OnGameOver += HandleGameOver;
-
-                if (GameManager.Instance.player1Castle != null)
-                {
-                    GameManager.Instance.player1Castle.OnCastleHealthChanged += UpdateP1CastleHealth;
-                }
-                if (GameManager.Instance.player2Castle != null)
-                {
-                    GameManager.Instance.player2Castle.OnCastleHealthChanged += UpdateP2CastleHealth;
-                }
             }
+
+            BindCastleHealthListeners();
 
             if (restartButton != null)
             {
                 restartButton.onClick.AddListener(OnRestartClicked);
             }
+        }
+
+        private void Update()
+        {
+            // Auto bind listeners if castles registered after Start
+            BindCastleHealthListeners();
+        }
+
+        private bool p1Bound = false;
+        private bool p2Bound = false;
+        private bool fuelBound = false;
+
+        private void BindCastleHealthListeners()
+        {
+            if (!p1Bound && GameManager.Instance != null && GameManager.Instance.player1Castle != null)
+            {
+                p1Bound = true;
+                GameManager.Instance.player1Castle.OnCastleHealthChanged += UpdateP1CastleHealth;
+                UpdateP1CastleHealth(GameManager.Instance.player1Castle.currentCastleHealth, GameManager.Instance.player1Castle.maxCastleHealth);
+            }
+
+            if (!p2Bound && GameManager.Instance != null && GameManager.Instance.player2Castle != null)
+            {
+                p2Bound = true;
+                GameManager.Instance.player2Castle.OnCastleHealthChanged += UpdateP2CastleHealth;
+                UpdateP2CastleHealth(GameManager.Instance.player2Castle.currentCastleHealth, GameManager.Instance.player2Castle.maxCastleHealth);
+            }
+
+            if (!fuelBound && GameManager.Instance != null && GameManager.Instance.player1Castle != null)
+            {
+                CastleMovement movement = GameManager.Instance.player1Castle.GetComponent<CastleMovement>();
+                if (movement != null)
+                {
+                    fuelBound = true;
+                    movement.OnFuelChanged += UpdateFuelUI;
+                    UpdateFuelUI(movement.currentFuel, movement.maxFuel);
+                }
+            }
+        }
+
+        private void UpdateFuelUI(float current, float max)
+        {
+            float fill = (max > 0f) ? Mathf.Clamp01(current / max) : 0f;
+            int pct = Mathf.CeilToInt(fill * 100f);
+            if (fuelBarFill != null) fuelBarFill.fillAmount = fill;
+            string msg = $"Fuel: {pct}%";
+            if (fuelText != null) fuelText.text = msg;
+            if (fuelTextTMP != null) fuelTextTMP.text = msg;
         }
 
         private void OnDestroy()
@@ -84,14 +133,22 @@ namespace CastleBusters.UI
 
         private void UpdateP1CastleHealth(float current, float max)
         {
-            if (p1CastleHealthFill != null) p1CastleHealthFill.fillAmount = current / max;
-            if (p1CastleHealthText != null) p1CastleHealthText.text = $"P1 Castle: {Mathf.CeilToInt(current)} / {Mathf.CeilToInt(max)}";
+            float fill = (max > 0f) ? Mathf.Clamp01(current / max) : 0f;
+            int pct = Mathf.CeilToInt(fill * 100f);
+            if (p1CastleHealthFill != null) p1CastleHealthFill.fillAmount = fill;
+            string msg = $"P1 Castle: {pct}%";
+            if (p1CastleHealthText != null) p1CastleHealthText.text = msg;
+            if (p1CastleHealthTextTMP != null) p1CastleHealthTextTMP.text = msg;
         }
 
         private void UpdateP2CastleHealth(float current, float max)
         {
-            if (p2CastleHealthFill != null) p2CastleHealthFill.fillAmount = current / max;
-            if (p2CastleHealthText != null) p2CastleHealthText.text = $"P2 Castle: {Mathf.CeilToInt(current)} / {Mathf.CeilToInt(max)}";
+            float fill = (max > 0f) ? Mathf.Clamp01(current / max) : 0f;
+            int pct = Mathf.CeilToInt(fill * 100f);
+            if (p2CastleHealthFill != null) p2CastleHealthFill.fillAmount = fill;
+            string msg = $"P2 Castle: {pct}%";
+            if (p2CastleHealthText != null) p2CastleHealthText.text = msg;
+            if (p2CastleHealthTextTMP != null) p2CastleHealthTextTMP.text = msg;
         }
 
         private void HandleGameOver(PlayerSide winner)
