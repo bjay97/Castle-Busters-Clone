@@ -65,30 +65,39 @@ namespace CastleBusters.Environment
             OnFuelChanged?.Invoke(currentFuel, maxFuel);
         }
 
+        private float uiInputDirection = 0f;
+
+        public void PressMoveLeft() { uiInputDirection = -1f; }
+        public void PressMoveRight() { uiInputDirection = 1f; }
+        public void ReleaseMove() { uiInputDirection = 0f; }
+
         private void Update()
         {
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
             if (!isMyTurn || castle == null) return;
             if (castle.ownerSide == PlayerSide.Player2) return; // Player 2 AI handled separately or by bot
 
-            float horizontalInput = 0f;
+            float horizontalInput = uiInputDirection;
 
-            // Support both Legacy and New Input System for movement
+            if (Mathf.Abs(horizontalInput) < 0.01f)
+            {
+                // Support Keyboard A/D fallback
 #if ENABLE_INPUT_SYSTEM || UNITY_2020_1_OR_NEWER
-            if (UnityEngine.InputSystem.Keyboard.current != null)
-            {
-                if (UnityEngine.InputSystem.Keyboard.current.aKey.isPressed || UnityEngine.InputSystem.Keyboard.current.leftArrowKey.isPressed)
-                    horizontalInput = -1f;
-                else if (UnityEngine.InputSystem.Keyboard.current.dKey.isPressed || UnityEngine.InputSystem.Keyboard.current.rightArrowKey.isPressed)
-                    horizontalInput = 1f;
-            }
-            else
-            {
-                horizontalInput = Input.GetAxisRaw("Horizontal");
-            }
+                if (UnityEngine.InputSystem.Keyboard.current != null)
+                {
+                    if (UnityEngine.InputSystem.Keyboard.current.aKey.isPressed || UnityEngine.InputSystem.Keyboard.current.leftArrowKey.isPressed)
+                        horizontalInput = -1f;
+                    else if (UnityEngine.InputSystem.Keyboard.current.dKey.isPressed || UnityEngine.InputSystem.Keyboard.current.rightArrowKey.isPressed)
+                        horizontalInput = 1f;
+                }
+                else
+                {
+                    horizontalInput = Input.GetAxisRaw("Horizontal");
+                }
 #else
-            horizontalInput = Input.GetAxisRaw("Horizontal");
+                horizontalInput = Input.GetAxisRaw("Horizontal");
 #endif
+            }
 
             if (Mathf.Abs(horizontalInput) > 0.01f && currentFuel > 0f)
             {

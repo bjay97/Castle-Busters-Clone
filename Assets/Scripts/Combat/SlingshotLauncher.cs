@@ -14,6 +14,7 @@ namespace CastleBusters.Combat
 
         [Header("Active Aiming State")]
         public Soldier activeSoldier;
+        public bool isAimingAllowed = false;
 
         private bool isDragging = false;
         private Vector2 dragStartPosition;
@@ -75,17 +76,24 @@ namespace CastleBusters.Combat
             }
         }
 
-        public void SelectSoldier(Soldier soldier)
+        public void EnableAimingForSoldier(Soldier soldier)
         {
             if (soldier != null && !soldier.IsDead && !soldier.hasFiredThisTurn)
             {
                 activeSoldier = soldier;
+                isAimingAllowed = true;
             }
+        }
+
+        public void SelectSoldier(Soldier soldier)
+        {
+            EnableAimingForSoldier(soldier);
         }
 
         private void AutoSelectSoldierForTurn(PlayerSide activeSide)
         {
             activeSoldier = null;
+            isAimingAllowed = false;
 
             Castle activeCastle = (activeSide == PlayerSide.Player1) 
                 ? GameManager.Instance?.player1Castle 
@@ -179,10 +187,7 @@ namespace CastleBusters.Combat
         private void Update()
         {
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
-            if (activeSoldier == null || activeSoldier.IsDead || activeSoldier.hasFiredThisTurn)
-            {
-                FindAndSelectPlayer1Soldier();
-            }
+            if (!isAimingAllowed) return;
             if (activeSoldier == null || activeSoldier.IsDead || activeSoldier.hasFiredThisTurn) return;
 
             if (mainCamera == null)
@@ -256,6 +261,7 @@ namespace CastleBusters.Combat
             Soldier firingSoldier = activeSoldier;
             firingSoldier.hasFiredThisTurn = true;
             activeSoldier = null;
+            isAimingAllowed = false;
 
             if (firingSoldier.fireMode == FireMode.RapidSalvo)
             {

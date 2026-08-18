@@ -4,6 +4,7 @@ using TMPro;
 using CastleBusters.Core;
 using CastleBusters.Environment;
 using CastleBusters.Units;
+using CastleBusters.Combat;
 
 namespace CastleBusters.UI
 {
@@ -36,6 +37,17 @@ namespace CastleBusters.UI
         public Text loadingText;
         public TextMeshProUGUI loadingTextTMP;
         public float loadingDisplayDuration = 1.0f;
+
+        [Header("Bottom-Left Movement Controls")]
+        public GameObject movementPanel;
+        public Button moveLeftBtn;
+        public Button moveRightBtn;
+        public Button doneMovingBtn;
+
+        [Header("Bottom-Center Soldier Select Controls")]
+        public GameObject soldierSelectPanel;
+        public Button soldier1Btn;
+        public Button soldier2Btn;
 
         [Header("Game Over Overlay")]
         public GameObject gameOverPanel;
@@ -158,11 +170,165 @@ namespace CastleBusters.UI
             BindCastleHealthListeners();
         }
 
+        private Coroutine turnSequenceCoroutine;
+
         private void UpdateTurnUI(PlayerSide side)
         {
             string msg = (side == PlayerSide.Player1) ? "Player 1's Turn (Your Turn)" : "Player 2's Turn (AI Bot Thinking...)";
             if (turnText != null) turnText.text = msg;
             if (turnTextTMP != null) turnTextTMP.text = msg;
+
+            if (turnSequenceCoroutine != null) StopCoroutine(turnSequenceCoroutine);
+
+            if (side == PlayerSide.Player1)
+            {
+                turnSequenceCoroutine = StartCoroutine(Player1TurnSequenceRoutine());
+            }
+            else
+            {
+                // Hide panels on Player 2 turn
+                if (movementPanel != null) movementPanel.SetActive(false);
+                if (soldierSelectPanel != null) soldierSelectPanel.SetActive(false);
+
+                // Show solid facades during AI turn
+                if (GameManager.Instance != null && GameManager.Instance.player1Castle != null)
+                {
+                    CastleFacadeVisibility vis = GameManager.Instance.player1Castle.GetComponentInChildren<CastleFacadeVisibility>();
+                    if (vis != null) vis.SetFacadeVisibility(true);
+                }
+            }
+        }
+
+        private System.Collections.IEnumerator Player1TurnSequenceRoutine()
+        {
+            // 1. PHASE 1: Initial 2.5 seconds opaque view
+            if (movementPanel != null) movementPanel.SetActive(false);
+            if (soldierSelectPanel != null) soldierSelectPanel.SetActive(false);
+
+            CastleFacadeVisibility p1Vis = null;
+            if (GameManager.Instance != null && GameManager.Instance.player1Castle != null)
+            {
+                p1Vis = GameManager.Instance.player1Castle.GetComponentInChildren<CastleFacadeVisibility>();
+                if (p1Vis != null) p1Vis.SetFacadeVisibility(true); // 100% OPAQUE at start of turn
+            }
+
+            yield return new WaitForSeconds(2.5f);
+
+            // 2. PHASE 2: Clear up facade & Show Bottom-Left Movement Controls
+            if (p1Vis != null) p1Vis.SetFacadeVisibility(false); // Clear facade so room is visible
+
+            if (movementPanel != null) movementPanel.SetActive(true);
+
+            // Setup Movement Button listeners
+            CastleMovement p1Movement = GameManager.Instance?.player1Castle?.GetComponent<CastleMovement>();
+            SetupMovementButtons(p1Movement);
+
+            // Wait until user clicks "Done Moving" or moves & stops
+            bool doneMoving = false;
+            if (doneMovingBtn != null)
+            {
+                doneMovingBtn.onClick.RemoveAllListeners();
+                doneMovingBtn.onClick.AddListener(() => doneMoving = true);
+            }
+
+            // Allow driving phase for up to 8 seconds or until Done Moving clicked
+            float driveTimer = 0f;
+            while (!doneMoving && driveTimer < 8.0f)
+            {
+                driveTimer += Time.deltaTime;
+                yield return null;
+            }
+
+            if (movementPanel != null) movementPanel.SetActive(false);
+            if (p1Movement != null) p1Movement.ReleaseMove();
+
+            // 3. PHASE 3: Show Bottom-Center Soldier Selection Controls
+            if (soldierSelectPanel != null) soldierSelectPanel.SetActive(true);
+
+            Castle p1Castle = GameManager.Instance?.player1Castle;
+            SlingshotLauncher launcher = FindFirstObjectByType<SlingshotLauncher>();
+
+            Soldier chosenSoldier = null;
+
+            if (p1Castle != null && p1Castle.soldiers.Count > 0)
+            {
+                if (soldier1Btn != null && p1Castle.soldiers.Count >= 1)
+                {
+                    soldier1Btn.onClick.RemoveAllListeners();
+                    soldier1Btn.onClick.AddListener(() => {
+                        chosenSoldier = p1Castle.soldiers[0];
+                    });
+                }
+
+                if (soldier2Btn != null && p1Castle.soldiers.Count >= 2)
+                {
+                    soldier2Btn.onClick.RemoveAllListeners();
+                    soldier2Btn.onClick.AddListener(() => {
+                        chosenSoldier = p1Castle.soldiers[1];
+                    });
+                }
+            }
+
+            // Wait until user selects a soldier via bottom-center buttons
+            while (chosenSoldier == null)
+            {
+                // Fallback auto-select if buttons not wired in scene
+                if (soldierSelectPanel == null || (!soldier1Btn && !soldier2Btn))
+                {
+                    if (p1Castle != null && p1Castle.soldiers.Count > 0)
+                    {
+                        foreach (var s in p1Castle.soldiers)
+                        {
+                            if (s != null && !s.IsDead && !s.hasFiredThisTurn) { chosenSoldier = s; break; }
+                        }
+                    }
+                    if (chosenSoldier == null && p1Castle != null && p1Castle.soldiers.Count > 0) chosenSoldier = p1Castle.soldiers[0];
+                }
+                yield return null;
+            }
+
+            if (soldierSelectPanel != null) soldierSelectPanel.SetActive(false);
+
+            // 4. PHASE 4: Enable Trajectory Prediction & Aiming ONLY after soldier selected!
+            if (launcher != null && chosenSoldier != null)
+            {
+                launcher.EnableAimingForSoldier(chosenSoldier);
+            }
+        }
+
+        private void SetupMovementButtons(CastleMovement movement)
+        {
+            if (movement == null) return;
+
+            if (moveLeftBtn != null)
+            {
+                UnityEngine.EventSystems.EventTrigger trigger = moveLeftBtn.gameObject.GetComponent<UnityEngine.EventSystems.EventTrigger>();
+                if (trigger == null) trigger = moveLeftBtn.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+                trigger.triggers.Clear();
+
+                var down = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown };
+                down.callback.AddListener((data) => movement.PressMoveLeft());
+                trigger.triggers.Add(down);
+
+                var up = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp };
+                up.callback.AddListener((data) => movement.ReleaseMove());
+                trigger.triggers.Add(up);
+            }
+
+            if (moveRightBtn != null)
+            {
+                UnityEngine.EventSystems.EventTrigger trigger = moveRightBtn.gameObject.GetComponent<UnityEngine.EventSystems.EventTrigger>();
+                if (trigger == null) trigger = moveRightBtn.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+                trigger.triggers.Clear();
+
+                var down = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown };
+                down.callback.AddListener((data) => movement.PressMoveRight());
+                trigger.triggers.Add(down);
+
+                var up = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp };
+                up.callback.AddListener((data) => movement.ReleaseMove());
+                trigger.triggers.Add(up);
+            }
         }
 
         private void UpdateActionUI(int actionsTaken)
