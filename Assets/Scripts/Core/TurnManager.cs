@@ -51,6 +51,7 @@ namespace CastleBusters.Core
         {
             activePlayer = side;
             actionsTakenThisTurn = 0;
+            if (CameraController.Instance != null) CameraController.Instance.FocusCastle(side);
             OnTurnChanged?.Invoke(activePlayer);
             OnActionCountChanged?.Invoke(actionsTakenThisTurn);
         }

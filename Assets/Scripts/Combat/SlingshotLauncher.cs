@@ -291,6 +291,12 @@ namespace CastleBusters.Combat
             {
                 rb.linearVelocity = launchVelocity;
             }
+
+            // Smoothly track projectile with camera in real-time
+            if (CameraController.Instance != null && CameraController.Instance.currentTarget == null)
+            {
+                CameraController.Instance.FollowProjectile(projObj.transform);
+            }
         }
 
         private System.Collections.IEnumerator FireSalvoRoutine(Soldier soldier, Vector2 baseLaunchVelocity)
