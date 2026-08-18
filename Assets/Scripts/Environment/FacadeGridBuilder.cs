@@ -100,11 +100,7 @@ namespace CastleBusters.Environment
 
                     sr.sortingOrder = 2;
 
-                    // Add Kinematic Rigidbody 2D & BoxCollider 2D
-                    Rigidbody2D rb = chunk.AddComponent<Rigidbody2D>();
-                    rb.bodyType = RigidbodyType2D.Kinematic;
-                    rb.useFullKinematicContacts = true;
-
+                    // Add BoxCollider2D (no Rigidbody2D required on static micro-blocks, eliminating physics transform overhead)
                     BoxCollider2D col = chunk.AddComponent<BoxCollider2D>();
                     col.size = Vector2.one; // Fit sprite bounds perfectly
 
@@ -139,15 +135,19 @@ namespace CastleBusters.Environment
             if (isEvaluatingCollapse || !Application.isPlaying) return;
             isEvaluatingCollapse = true;
 
-            // Find all active blocks in grid
-            DestructibleBlock[,] grid = new DestructibleBlock[columns, rows];
+            // Find all active remaining DestructibleBlock components efficiently
             DestructibleBlock[] allBlocks = GetComponentsInChildren<DestructibleBlock>();
+            if (allBlocks == null || allBlocks.Length == 0)
+            {
+                isEvaluatingCollapse = false;
+                return;
+            }
 
+            DestructibleBlock[,] grid = new DestructibleBlock[columns, rows];
             foreach (var b in allBlocks)
             {
-                if (b != null && !b.IsDestroyed)
+                if (b != null && !b.IsDestroyed && b.gameObject.activeInHierarchy)
                 {
-                    // Match position to grid coords
                     int c = Mathf.Clamp(Mathf.FloorToInt((b.transform.localPosition.x + totalWidth / 2f) / (totalWidth / columns)), 0, columns - 1);
                     int r = Mathf.Clamp(Mathf.FloorToInt((b.transform.localPosition.y + totalHeight / 2f) / (totalHeight / rows)), 0, rows - 1);
                     grid[c, r] = b;
@@ -195,21 +195,27 @@ namespace CastleBusters.Environment
                 }
             }
 
-            // Collapse all unanchored floating blocks!
-            bool collapsedAny = false;
+            // Collect all unanchored floating blocks to destroy in a single batch
+            System.Collections.Generic.List<GameObject> toDestroy = new System.Collections.Generic.List<GameObject>();
             for (int r = 0; r < rows; r++)
             {
                 for (int c = 0; c < columns; c++)
                 {
                     if (grid[c, r] != null && !grid[c, r].IsDestroyed && !isAnchored[c, r])
                     {
-                        collapsedAny = true;
-                        Destroy(grid[c, r].gameObject);
+                        // Unsubscribe listener so Destroy doesn't trigger recursive checks
+                        grid[c, r].OnBlockDestroyed -= () => CheckStructuralCollapse(c, r);
+                        toDestroy.Add(grid[c, r].gameObject);
                     }
                 }
             }
 
-            if (collapsedAny)
+            for (int i = 0; i < toDestroy.Count; i++)
+            {
+                if (toDestroy[i] != null) Destroy(toDestroy[i]);
+            }
+
+            if (toDestroy.Count > 0)
             {
                 Castle parentCastle = GetComponentInParent<Castle>();
                 if (parentCastle != null) parentCastle.RefreshCastleHealth();

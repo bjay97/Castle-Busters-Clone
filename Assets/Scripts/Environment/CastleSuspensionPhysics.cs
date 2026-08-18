@@ -26,7 +26,7 @@ namespace CastleBusters.Environment
             if (backWheel != null) backWheelBaseLocalPos = backWheel.localPosition;
         }
 
-        private void Update()
+        private void FixedUpdate()
         {
             UpdateSuspensionAndTilt();
         }

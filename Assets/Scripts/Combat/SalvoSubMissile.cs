@@ -10,6 +10,8 @@ namespace CastleBusters.Combat
         [Range(0f, 1f)] public float punchThroughChance = 0.25f; // 25% chance to punch through outer wall
         private bool hasPunchedThrough = false;
 
+        private static System.Collections.Generic.List<SalvoSubMissile> activeSubMissiles = new System.Collections.Generic.List<SalvoSubMissile>();
+
         protected override void Awake()
         {
             base.Awake();
@@ -22,20 +24,26 @@ namespace CastleBusters.Combat
         {
             base.Start();
 
-            // Ignore collisions with other salvo sub-missiles in mid-flight to prevent bouncing off each other
+            // Ignore collisions with other active salvo sub-missiles using static list
             Collider2D myCol = GetComponent<Collider2D>();
             if (myCol != null)
             {
-                SalvoSubMissile[] activeSubMissiles = FindObjectsByType<SalvoSubMissile>(FindObjectsSortMode.None);
-                foreach (var other in activeSubMissiles)
+                for (int i = 0; i < activeSubMissiles.Count; i++)
                 {
-                    if (other != null && other != this)
+                    if (activeSubMissiles[i] != null && activeSubMissiles[i] != this)
                     {
-                        Collider2D otherCol = other.GetComponent<Collider2D>();
+                        Collider2D otherCol = activeSubMissiles[i].GetComponent<Collider2D>();
                         if (otherCol != null) Physics2D.IgnoreCollision(myCol, otherCol);
                     }
                 }
             }
+
+            activeSubMissiles.Add(this);
+        }
+
+        private void OnDestroy()
+        {
+            activeSubMissiles.Remove(this);
         }
 
         private Vector2 lastFlightDirection = Vector2.right;
