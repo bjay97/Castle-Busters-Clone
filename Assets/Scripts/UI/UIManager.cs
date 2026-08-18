@@ -25,6 +25,11 @@ namespace CastleBusters.UI
         public Text p2CastleHealthText;
         public TextMeshProUGUI p2CastleHealthTextTMP;
 
+        [Header("Castle Movement Fuel Gauge")]
+        public Image fuelBarFill;
+        public Text fuelText;
+        public TextMeshProUGUI fuelTextTMP;
+
         [Header("Game Over Overlay")]
         public GameObject gameOverPanel;
         public Text winnerText;
@@ -62,6 +67,7 @@ namespace CastleBusters.UI
 
         private bool p1Bound = false;
         private bool p2Bound = false;
+        private bool fuelBound = false;
 
         private void BindCastleHealthListeners()
         {
@@ -78,6 +84,27 @@ namespace CastleBusters.UI
                 GameManager.Instance.player2Castle.OnCastleHealthChanged += UpdateP2CastleHealth;
                 UpdateP2CastleHealth(GameManager.Instance.player2Castle.currentCastleHealth, GameManager.Instance.player2Castle.maxCastleHealth);
             }
+
+            if (!fuelBound && GameManager.Instance != null && GameManager.Instance.player1Castle != null)
+            {
+                CastleMovement movement = GameManager.Instance.player1Castle.GetComponent<CastleMovement>();
+                if (movement != null)
+                {
+                    fuelBound = true;
+                    movement.OnFuelChanged += UpdateFuelUI;
+                    UpdateFuelUI(movement.currentFuel, movement.maxFuel);
+                }
+            }
+        }
+
+        private void UpdateFuelUI(float current, float max)
+        {
+            float fill = (max > 0f) ? Mathf.Clamp01(current / max) : 0f;
+            int pct = Mathf.CeilToInt(fill * 100f);
+            if (fuelBarFill != null) fuelBarFill.fillAmount = fill;
+            string msg = $"Fuel: {pct}%";
+            if (fuelText != null) fuelText.text = msg;
+            if (fuelTextTMP != null) fuelTextTMP.text = msg;
         }
 
         private void OnDestroy()
