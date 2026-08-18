@@ -63,25 +63,26 @@ namespace CastleBusters.Environment
 
         public void SetFacadeCollidersEnabled(bool enableColliders)
         {
-            if (childColliders == null || childColliders.Length == 0) childColliders = GetComponentsInChildren<Collider2D>();
-            for (int i = 0; i < childColliders.Length; i++)
+            DestructibleBlock[] blocks = GetComponentsInChildren<DestructibleBlock>();
+            for (int i = 0; i < blocks.Length; i++)
             {
-                if (childColliders[i] != null)
+                if (blocks[i] != null)
                 {
-                    childColliders[i].enabled = enableColliders;
+                    Collider2D col = blocks[i].GetComponent<Collider2D>();
+                    if (col != null) col.enabled = enableColliders;
                 }
             }
         }
 
         public void SetFacadeAlpha(float alpha)
         {
-            if (childRenderers == null || childRenderers.Length == 0) childRenderers = GetComponentsInChildren<SpriteRenderer>();
-            for (int i = 0; i < childRenderers.Length; i++)
+            DestructibleBlock[] blocks = GetComponentsInChildren<DestructibleBlock>();
+            for (int i = 0; i < blocks.Length; i++)
             {
-                if (childRenderers[i] != null)
+                if (blocks[i] != null && blocks[i].spriteRenderer != null)
                 {
-                    Color c = childRenderers[i].color;
-                    childRenderers[i].color = new Color(c.r, c.g, c.b, alpha);
+                    Color c = blocks[i].spriteRenderer.color;
+                    blocks[i].spriteRenderer.color = new Color(c.r, c.g, c.b, alpha);
                 }
             }
         }

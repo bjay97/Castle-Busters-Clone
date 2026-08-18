@@ -30,6 +30,13 @@ namespace CastleBusters.UI
         public Text fuelText;
         public TextMeshProUGUI fuelTextTMP;
 
+        [Header("Match Loading Overlay")]
+        public GameObject loadingPanel;
+        public CanvasGroup loadingCanvasGroup;
+        public Text loadingText;
+        public TextMeshProUGUI loadingTextTMP;
+        public float loadingDisplayDuration = 1.0f;
+
         [Header("Game Over Overlay")]
         public GameObject gameOverPanel;
         public Text winnerText;
@@ -40,10 +47,20 @@ namespace CastleBusters.UI
         {
             if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
+            if (loadingPanel != null)
+            {
+                loadingPanel.SetActive(true);
+                StartCoroutine(HideLoadingScreenRoutine());
+            }
+
             if (TurnManager.Instance != null)
             {
                 TurnManager.Instance.OnTurnChanged += UpdateTurnUI;
                 TurnManager.Instance.OnActionCountChanged += UpdateActionUI;
+
+                // Explicitly refresh turn and action HUD on Start
+                UpdateTurnUI(TurnManager.Instance.activePlayer);
+                UpdateActionUI(TurnManager.Instance.actionsTakenThisTurn);
             }
 
             if (GameManager.Instance != null)
@@ -107,13 +124,38 @@ namespace CastleBusters.UI
             if (fuelTextTMP != null) fuelTextTMP.text = msg;
         }
 
-        private void OnDestroy()
+        private System.Collections.IEnumerator HideLoadingScreenRoutine()
         {
+            string msg = "ASSEMBLING FORTRESSES...";
+            if (loadingText != null) loadingText.text = msg;
+            if (loadingTextTMP != null) loadingTextTMP.text = msg;
+
+            // Allow 1.0s for grid slicing, collider creation, and physics settling
+            yield return new WaitForSeconds(loadingDisplayDuration);
+
+            // Fade out smoothly if CanvasGroup is attached specifically to loadingPanel
+            if (loadingCanvasGroup != null && loadingPanel != null && (loadingCanvasGroup.gameObject == loadingPanel || loadingCanvasGroup.transform.IsChildOf(loadingPanel.transform)))
+            {
+                float fadeTime = 0.4f;
+                float elapsed = 0f;
+                while (elapsed < fadeTime)
+                {
+                    elapsed += Time.deltaTime;
+                    loadingCanvasGroup.alpha = Mathf.Lerp(1f, 0f, elapsed / fadeTime);
+                    yield return null;
+                }
+            }
+
+            if (loadingPanel != null) loadingPanel.SetActive(false);
+
+            // Notify player turn and refresh HUD elements
             if (TurnManager.Instance != null)
             {
-                TurnManager.Instance.OnTurnChanged -= UpdateTurnUI;
-                TurnManager.Instance.OnActionCountChanged -= UpdateActionUI;
+                UpdateTurnUI(TurnManager.Instance.activePlayer);
+                UpdateActionUI(TurnManager.Instance.actionsTakenThisTurn);
             }
+
+            BindCastleHealthListeners();
         }
 
         private void UpdateTurnUI(PlayerSide side)
