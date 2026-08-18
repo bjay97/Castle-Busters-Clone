@@ -107,11 +107,23 @@ namespace CastleBusters.Environment
 
         public bool AreAllSoldiersDead()
         {
-            foreach (var s in soldiers)
+            Soldier[] allSoldiers = FindObjectsByType<Soldier>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            int totalOwnerSoldiers = 0;
+            int aliveOwnerSoldiers = 0;
+
+            foreach (var s in allSoldiers)
             {
-                if (s != null && !s.IsDead) return false;
+                if (s != null && s.ownerSide == ownerSide)
+                {
+                    totalOwnerSoldiers++;
+                    if (!s.IsDead && s.gameObject.activeInHierarchy)
+                    {
+                        aliveOwnerSoldiers++;
+                    }
+                }
             }
-            return true;
+
+            return (totalOwnerSoldiers > 0 && aliveOwnerSoldiers == 0);
         }
 
         private void OnDestroy()
