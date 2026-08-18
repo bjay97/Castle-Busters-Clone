@@ -26,7 +26,7 @@ namespace CastleBusters.Combat
             Destroy(gameObject, maxLifetime);
         }
 
-        private void OnCollisionEnter2D(Collision2D collision)
+        protected virtual void OnCollisionEnter2D(Collision2D collision)
         {
             if (hasExploded) return;
 
