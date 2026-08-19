@@ -22,8 +22,19 @@ namespace CastleBusters.Environment
         public event Action<float, float> OnCastleHealthChanged;
         public event Action OnCastleDestroyed;
 
+        [Header("Impact Recoil")]
+        public float recoilDistance = 0.35f; // Nudge distance when hit
+        public float recoilRecoverySpeed = 10f; // Speed of spring recovery back to rest position
+
+        private Vector3 originalLocalPos;
+        private Vector3 recoilOffset;
+        private bool isOriginalPosSaved = false;
+
         private void Start()
         {
+            originalLocalPos = transform.localPosition;
+            isOriginalPosSaved = true;
+
             if (GameManager.Instance != null)
             {
                 if (ownerSide == PlayerSide.Player1) GameManager.Instance.player1Castle = this;
@@ -31,6 +42,32 @@ namespace CastleBusters.Environment
             }
 
             InitializeCastle();
+        }
+
+        private void Update()
+        {
+            if (recoilOffset.sqrMagnitude > 0.0001f)
+            {
+                recoilOffset = Vector3.Lerp(recoilOffset, Vector3.zero, Time.deltaTime * recoilRecoverySpeed);
+                transform.localPosition = originalLocalPos + recoilOffset;
+            }
+            else if (isOriginalPosSaved && transform.localPosition != originalLocalPos)
+            {
+                recoilOffset = Vector3.zero;
+                transform.localPosition = originalLocalPos;
+            }
+        }
+
+        public void TriggerRecoil(Vector2 hitDirection)
+        {
+            if (!isOriginalPosSaved)
+            {
+                originalLocalPos = transform.localPosition;
+                isOriginalPosSaved = true;
+            }
+
+            recoilOffset += (Vector3)(hitDirection.normalized * recoilDistance);
+            recoilOffset = Vector3.ClampMagnitude(recoilOffset, recoilDistance * 1.5f);
         }
 
         public void InitializeCastle()
@@ -95,6 +132,10 @@ namespace CastleBusters.Environment
         private void HandleBlockDamageTaken(float dmg)
         {
             RecalculateCastleHealth();
+
+            // Recoil away from opponent (Player 1 pushes right, Player 2 pushes left)
+            Vector2 recoilDir = (ownerSide == PlayerSide.Player1) ? Vector2.right : Vector2.left;
+            TriggerRecoil(recoilDir);
         }
 
         private void RecalculateCastleHealth()
