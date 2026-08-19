@@ -30,6 +30,7 @@ namespace CastleBusters.Core
 
         [Header("Orthographic Zoom Settings")]
         public float castleFocusZoom = 6.0f;
+        public float enemyTurnZoom = 10.5f;       // Constant zoomed out view during enemy turn (moving & firing)
         public float movementZoom = 11.5f;       // Significantly zoomed out wide view while driving castle
         public float soldierSelectZoom = 5.2f;    // Slightly zoomed in during soldier select
         public float soldierFocusZoom = 3.8f;     // Smooth close-up pan on active soldier
@@ -158,7 +159,7 @@ namespace CastleBusters.Core
 
                 case CameraMode.Player2Castle:
                     if (player2CastleTransform != null) targetPosition = player2CastleTransform.position + cameraOffset;
-                    targetZoom = castleFocusZoom;
+                    targetZoom = enemyTurnZoom; // Constant zoomed-out view for enemy turn
                     break;
 
                 case CameraMode.DrivingCastle:
@@ -174,9 +175,19 @@ namespace CastleBusters.Core
                 case CameraMode.FocusSoldier:
                     if (currentTarget != null)
                     {
-                        // Shift camera +3.8 units right towards enemy castle while aiming for trajectory visibility!
-                        targetPosition = currentTarget.position + aimingOffset;
-                        targetZoom = soldierFocusZoom;
+                        Soldier s = currentTarget.GetComponent<Soldier>();
+                        if (s != null && s.ownerSide == PlayerSide.Player2)
+                        {
+                            // Do NOT zoom in on enemy soldiers! Keep constant zoomed-out view
+                            targetPosition = currentTarget.position + cameraOffset;
+                            targetZoom = enemyTurnZoom;
+                        }
+                        else
+                        {
+                            // Shift camera +3.8 units right towards enemy castle while aiming for trajectory visibility!
+                            targetPosition = currentTarget.position + aimingOffset;
+                            targetZoom = soldierFocusZoom;
+                        }
                     }
                     else
                     {

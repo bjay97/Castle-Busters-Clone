@@ -49,12 +49,10 @@ namespace CastleBusters.Environment
             if (recoilOffset.sqrMagnitude > 0.0001f)
             {
                 recoilOffset = Vector3.Lerp(recoilOffset, Vector3.zero, Time.deltaTime * recoilRecoverySpeed);
-                transform.localPosition = originalLocalPos + recoilOffset;
             }
-            else if (isOriginalPosSaved && transform.localPosition != originalLocalPos)
+            else
             {
                 recoilOffset = Vector3.zero;
-                transform.localPosition = originalLocalPos;
             }
         }
 

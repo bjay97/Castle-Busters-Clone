@@ -31,6 +31,26 @@ namespace CastleBusters.Environment
         {
             castle = GetComponent<Castle>();
             currentFuel = maxFuel;
+
+            LockRotation();
+        }
+
+        private void FixedUpdate()
+        {
+            LockRotation();
+        }
+
+        private void LockRotation()
+        {
+            Rigidbody2D rb = GetComponent<Rigidbody2D>();
+            if (rb != null)
+            {
+                rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+                rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+                rb.freezeRotation = true;
+                rb.angularVelocity = 0f;
+                rb.rotation = 0f;
+            }
         }
 
         private void Start()
@@ -144,8 +164,17 @@ namespace CastleBusters.Environment
 
             if (Mathf.Abs(actualDelta) > 0.0001f)
             {
-                // Translate Castle
-                transform.position = new Vector3(newX, transform.position.y, transform.position.z);
+                // Translate Castle smoothly via Rigidbody2D MovePosition to eliminate physics stutter/teleporting
+                Vector3 targetPos = new Vector3(newX, transform.position.y, transform.position.z);
+                Rigidbody2D rb = GetComponent<Rigidbody2D>();
+                if (rb != null)
+                {
+                    rb.MovePosition(targetPos);
+                }
+                else
+                {
+                    transform.position = targetPos;
+                }
 
                 // Consume Fuel
                 float fuelUsed = fuelConsumptionRate * Time.deltaTime;
