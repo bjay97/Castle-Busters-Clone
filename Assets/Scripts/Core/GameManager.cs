@@ -38,6 +38,8 @@ namespace CastleBusters.Core
             IsGameOver = false;
             CurrentState = GameState.PlayerTurn;
 
+            EnsureBackgroundManager();
+
             if (player1Castle != null) player1Castle.OnCastleDestroyed += CheckVictoryState;
             if (player2Castle != null) player2Castle.OnCastleDestroyed += CheckVictoryState;
 
@@ -45,6 +47,17 @@ namespace CastleBusters.Core
             {
                 TurnManager.Instance.StartTurn(PlayerSide.Player1);
             }
+        }
+
+        private void EnsureBackgroundManager()
+        {
+            BackgroundManager bg = FindFirstObjectByType<BackgroundManager>();
+            if (bg == null)
+            {
+                GameObject bgObj = new GameObject("BackgroundManager");
+                bg = bgObj.AddComponent<BackgroundManager>();
+            }
+            bg.SetupBackgroundLayers();
         }
 
         public void CheckVictoryState()
