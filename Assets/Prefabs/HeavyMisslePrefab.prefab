@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 6712441603173071632}
   - component: {fileID: 7737076175982125762}
   - component: {fileID: 7736241411928258387}
+  - component: {fileID: 6470033383325516046}
   m_Layer: 0
   m_Name: HeavyMisslePrefab
   m_TagString: Untagged
@@ -84,12 +85,12 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Sprite: {fileID: -2413806693520163455, guid: a86470a33a6bf42c4b3595704624658b, type: 3}
-  m_Color: {r: 0.9056604, g: 0.046991818, b: 0.046991818, a: 1}
+  m_Sprite: {fileID: 0}
+  m_Color: {r: 0.9622642, g: 0.9622642, b: 0.9622642, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 1, y: 1}
+  m_Size: {x: 1.96, y: 2.24}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -176,3 +177,16 @@ MonoBehaviour:
   maxLifetime: 8
   speedMultiplier: 0.45
   explosionVFXPrefab: {fileID: 2433282508537954060, guid: 3ef3ae421f71c5c4e97fe12dc2fc6312, type: 3}
+--- !u!114 &6470033383325516046
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1668717909590357474}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f877c2814f81283469973109ee6801d7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CastleBusters.Environment.SpriteAssigner
+  imageTexture: {fileID: 2800000, guid: bfe184ae4c4982144821fa09256970ad, type: 3}
