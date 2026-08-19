@@ -191,7 +191,15 @@ namespace CastleBusters.Environment
 
             float spriteW = fullFacadeSprite.bounds.size.x;
             float spriteH = fullFacadeSprite.bounds.size.y;
-            fullObj.transform.localScale = new Vector3(totalWidth / spriteW, totalHeight / spriteH, 1f);
+
+            // Automatically sync totalWidth and totalHeight to native sprite artwork dimensions if using texture
+            if (castleTexture != null)
+            {
+                totalWidth = spriteW;
+                totalHeight = spriteH;
+            }
+
+            fullObj.transform.localScale = Vector3.one;
             fullFacadeRenderer.sortingOrder = 3;
         }
 
