@@ -60,10 +60,24 @@ namespace CastleBusters.Units
             currentHealth = maxHealth;
             OnHealthChanged?.Invoke(currentHealth, maxHealth);
 
+            EnsureModularVisual();
+
             if (TurnManager.Instance != null)
             {
                 TurnManager.Instance.OnTurnChanged += HandleTurnChanged;
             }
+        }
+
+        private void EnsureModularVisual()
+        {
+            ModularSoldierVisual visual = GetComponent<ModularSoldierVisual>();
+            if (visual == null)
+            {
+                visual = gameObject.AddComponent<ModularSoldierVisual>();
+                int index = (ownerSide == PlayerSide.Player1) ? 1 : 4;
+                visual.characterNumber = index;
+            }
+            visual.BuildCharacterVisuals();
         }
 
         private void OnDestroy()

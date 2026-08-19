@@ -13,17 +13,59 @@ namespace CastleBusters.Combat
         public float splashDamage = 40f;
         public float maxLifetime = 8f;
 
+        [Header("Speed & Physics Config")]
+        public float speedMultiplier = 0.65f; // Tune flight speed per projectile type (e.g. 0.65f for slower clear flight trajectory)
+
         protected Rigidbody2D rb;
         private bool hasExploded = false;
+
+        [Header("Visual Direction Config")]
+        public bool rotateTowardsVelocity = true; // Rotate projectile transform to match ballistic flight arc
+        public bool flipSpriteXOnLeftFlight = true; // Flip SpriteRenderer.flipX when traveling left (velocity.x < 0)
+
+        protected SpriteRenderer spriteRenderer;
 
         protected virtual void Awake()
         {
             rb = GetComponent<Rigidbody2D>();
+            spriteRenderer = GetComponent<SpriteRenderer>();
+            if (spriteRenderer == null) spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         }
 
         protected virtual void Start()
         {
             Destroy(gameObject, maxLifetime);
+        }
+
+        protected virtual void Update()
+        {
+            UpdateFlightOrientation();
+        }
+
+        protected virtual void UpdateFlightOrientation()
+        {
+            if (hasExploded || rb == null) return;
+
+            Vector2 vel = rb.linearVelocity;
+            if (vel.sqrMagnitude > 0.05f)
+            {
+                bool isTravellingLeft = (vel.x < -0.05f);
+
+                if (flipSpriteXOnLeftFlight && spriteRenderer != null)
+                {
+                    spriteRenderer.flipX = isTravellingLeft;
+                }
+
+                if (rotateTowardsVelocity)
+                {
+                    float angle = Mathf.Atan2(vel.y, vel.x) * Mathf.Rad2Deg;
+                    if (flipSpriteXOnLeftFlight && isTravellingLeft)
+                    {
+                        angle += 180f;
+                    }
+                    transform.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
+                }
+            }
         }
 
         protected virtual void OnCollisionEnter2D(Collision2D collision)

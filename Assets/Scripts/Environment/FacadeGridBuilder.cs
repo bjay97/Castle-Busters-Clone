@@ -19,6 +19,10 @@ namespace CastleBusters.Environment
         public float blockHealth = 25f;
         public bool generateOnStart = true;
 
+        [Header("Facade Layering & Sorting")]
+        public int facadeSortingOrder = 20; // Default 20 (higher than soldier body parts 10-16) so facade covers soldiers
+        public string facadeSortingLayerName = "Default";
+
         private Texture2D dynamicFacadeTexture;
         private SpriteRenderer fullFacadeRenderer;
         private Sprite fullFacadeSprite;
@@ -66,6 +70,12 @@ namespace CastleBusters.Environment
 #if UNITY_EDITOR
         private void OnValidate()
         {
+            if (fullFacadeRenderer != null)
+            {
+                if (!string.IsNullOrEmpty(facadeSortingLayerName)) fullFacadeRenderer.sortingLayerName = facadeSortingLayerName;
+                fullFacadeRenderer.sortingOrder = facadeSortingOrder;
+            }
+
             if (!Application.isPlaying && castleTexture != null && transform.childCount == 0)
             {
                 UnityEditor.EditorApplication.delayCall += () =>
@@ -191,8 +201,17 @@ namespace CastleBusters.Environment
 
             float spriteW = fullFacadeSprite.bounds.size.x;
             float spriteH = fullFacadeSprite.bounds.size.y;
-            fullObj.transform.localScale = new Vector3(totalWidth / spriteW, totalHeight / spriteH, 1f);
-            fullFacadeRenderer.sortingOrder = 3;
+
+            // Automatically sync totalWidth and totalHeight to native sprite artwork dimensions if using texture
+            if (castleTexture != null)
+            {
+                totalWidth = spriteW;
+                totalHeight = spriteH;
+            }
+
+            fullObj.transform.localScale = Vector3.one;
+            if (!string.IsNullOrEmpty(facadeSortingLayerName)) fullFacadeRenderer.sortingLayerName = facadeSortingLayerName;
+            fullFacadeRenderer.sortingOrder = facadeSortingOrder;
         }
 
         public static void CarveAllFacadesAt(Vector2 worldPos, float radius)
