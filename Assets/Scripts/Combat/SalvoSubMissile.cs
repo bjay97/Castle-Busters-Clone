@@ -69,6 +69,7 @@ namespace CastleBusters.Combat
                     hasPunchedThrough = true;
 
                     FacadeGridBuilder.CarveAllFacadesAt(collision.GetContact(0).point, explosionRadius);
+                    SpawnExplosionVFX(collision.GetContact(0).point);
                     block.TakeDamage(splashDamage);
 
                     // Convert collider to trigger so it glides straight through without physics collision bounce

@@ -49,9 +49,15 @@ namespace CastleBusters.Combat
             Explode();
         }
 
+        [Header("Explosion VFX")]
+        public GameObject explosionVFXPrefab;
+
         protected virtual void Explode()
         {
             hasExploded = true;
+
+            // Spawn explosion VFX at impact position
+            SpawnExplosionVFX(transform.position);
 
             // Smooth facade impact carving with organic crater brush
             FacadeGridBuilder.CarveAllFacadesAt(transform.position, explosionRadius);
@@ -82,6 +88,31 @@ namespace CastleBusters.Combat
             }
 
             Destroy(gameObject);
+        }
+
+        public void SpawnExplosionVFX(Vector3 position)
+        {
+            GameObject vfxPrefabToSpawn = explosionVFXPrefab;
+
+            if (vfxPrefabToSpawn == null)
+            {
+                vfxPrefabToSpawn = Resources.Load<GameObject>("CFXR Explosion 1");
+            }
+
+#if UNITY_EDITOR
+            if (vfxPrefabToSpawn == null)
+            {
+                vfxPrefabToSpawn = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/JMO Assets/Cartoon FX Remaster/CFXR Prefabs/Explosions/CFXR Explosion 1.prefab");
+            }
+#endif
+
+            if (vfxPrefabToSpawn != null)
+            {
+                GameObject vfxInstance = Instantiate(vfxPrefabToSpawn, position, Quaternion.identity);
+
+                // Auto cleanup particle explosion after 3.5 seconds
+                Destroy(vfxInstance, 3.5f);
+            }
         }
 
         private void OnDrawGizmosSelected()
