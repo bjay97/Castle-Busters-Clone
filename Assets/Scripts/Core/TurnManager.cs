@@ -34,7 +34,7 @@ namespace CastleBusters.Core
 
         private bool isWaitingForPhysics = false;
         private float settleTimer = 0f;
-        public float settleDelay = 2.5f;
+        public float settleDelay = 3.2f;
 
         private void Awake()
         {

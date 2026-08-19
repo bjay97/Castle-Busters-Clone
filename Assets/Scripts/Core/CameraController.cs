@@ -86,12 +86,18 @@ namespace CastleBusters.Core
             }
         }
 
+        [Header("Destruction View Hold")]
+        public float destructionHoldDuration = 2.5f;
+        private float holdTimer = 0f;
+        private Vector3 lastTargetPos;
+
         public void SetMode(CameraMode mode)
         {
             currentMode = mode;
             if (mode != CameraMode.FollowTarget)
             {
                 currentTarget = null;
+                holdTimer = 0f;
             }
         }
 
@@ -99,6 +105,7 @@ namespace CastleBusters.Core
         {
             currentTarget = projectileTransform;
             currentMode = CameraMode.FollowTarget;
+            holdTimer = 0f;
         }
 
         public void FocusSoldier(Transform soldierTransform)
@@ -181,12 +188,21 @@ namespace CastleBusters.Core
                 case CameraMode.FollowTarget:
                     if (currentTarget != null)
                     {
+                        lastTargetPos = currentTarget.position;
                         targetPosition = currentTarget.position + cameraOffset;
+                        targetZoom = followTargetZoom;
+                        holdTimer = destructionHoldDuration;
+                    }
+                    else if (holdTimer > 0f)
+                    {
+                        // Hold camera at impact location for a few seconds to display facade destruction
+                        holdTimer -= Time.deltaTime;
+                        targetPosition = lastTargetPos + cameraOffset;
                         targetZoom = followTargetZoom;
                     }
                     else
                     {
-                        // Target destroyed or lost -> revert to active player castle
+                        // Hold duration finished -> revert to active player castle
                         PlayerSide active = TurnManager.Instance != null ? TurnManager.Instance.activePlayer : PlayerSide.Player1;
                         FocusCastle(active);
                     }

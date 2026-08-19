@@ -55,6 +55,13 @@ namespace CastleBusters.UI
         public TextMeshProUGUI winnerTextTMP;
         public Button restartButton;
 
+        [Header("FPS Display (Top-Left)")]
+        public Text fpsText;
+        public TextMeshProUGUI fpsTextTMP;
+        private float fpsAccumulator = 0f;
+        private int fpsFrames = 0;
+        private float fpsTimeLeft = 0.25f;
+
         private void Start()
         {
             // Auto-ensure EventSystem exists so UI button clicks always work
@@ -66,6 +73,7 @@ namespace CastleBusters.UI
             }
 
             EnsureNonBlockingPanels();
+            EnsureFPSCounterUI();
 
             if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
@@ -102,6 +110,76 @@ namespace CastleBusters.UI
         {
             // Auto bind listeners if castles registered after Start
             BindCastleHealthListeners();
+            UpdateFPSCounter();
+        }
+
+        private void EnsureFPSCounterUI()
+        {
+            if (fpsText != null || fpsTextTMP != null) return;
+
+            Canvas canvas = FindFirstObjectByType<Canvas>();
+            if (canvas == null) return;
+
+            GameObject fpsObj = new GameObject("FPSCounterText");
+            fpsObj.transform.SetParent(canvas.transform, false);
+
+            RectTransform rect = fpsObj.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0f, 1f); // Top-Left
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+            rect.anchoredPosition = new Vector2(15f, -15f);
+            rect.sizeDelta = new Vector2(220f, 40f);
+
+            fpsText = fpsObj.AddComponent<Text>();
+            fpsText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (fpsText.font == null) fpsText.font = Font.CreateDynamicFontFromOSFont("Arial", 18);
+            fpsText.fontSize = 18;
+            fpsText.fontStyle = FontStyle.Bold;
+            fpsText.color = new Color(0.2f, 1.0f, 0.4f, 1.0f); // Bright neon green
+            fpsText.alignment = TextAnchor.UpperLeft;
+            fpsText.raycastTarget = false;
+
+            // Add shadow / outline effect for crisp contrast against any scene background
+            Outline outline = fpsObj.AddComponent<Outline>();
+            outline.effectColor = Color.black;
+            outline.effectDistance = new Vector2(1.5f, -1.5f);
+        }
+
+        private void UpdateFPSCounter()
+        {
+            EnsureFPSCounterUI();
+
+            fpsAccumulator += Time.unscaledDeltaTime;
+            fpsFrames++;
+            fpsTimeLeft -= Time.unscaledDeltaTime;
+
+            if (fpsTimeLeft <= 0.0f)
+            {
+                float fps = (fpsAccumulator > 0f) ? (fpsFrames / fpsAccumulator) : 0f;
+                float ms = (fps > 0f) ? (1000.0f / fps) : 0f;
+
+                string fpsString = $"FPS: {Mathf.RoundToInt(fps)} ({ms:F1} ms)";
+
+                Color fpsColor = (fps >= 55f) ? new Color(0.2f, 1.0f, 0.4f) :
+                                 (fps >= 30f) ? new Color(1.0f, 0.8f, 0.2f) :
+                                                new Color(1.0f, 0.3f, 0.3f);
+
+                if (fpsText != null)
+                {
+                    fpsText.text = fpsString;
+                    fpsText.color = fpsColor;
+                }
+
+                if (fpsTextTMP != null)
+                {
+                    fpsTextTMP.text = fpsString;
+                    fpsTextTMP.color = fpsColor;
+                }
+
+                fpsAccumulator = 0.0f;
+                fpsFrames = 0;
+                fpsTimeLeft = 0.25f;
+            }
         }
 
         private bool p1Bound = false;
@@ -211,61 +289,26 @@ namespace CastleBusters.UI
 
         private System.Collections.IEnumerator Player1TurnSequenceRoutine()
         {
-            // 1. PHASE 1: Initial 2.5 seconds opaque view
-            if (movementPanel != null) movementPanel.SetActive(false);
-            if (soldierSelectPanel != null) soldierSelectPanel.SetActive(false);
-
             CastleFacadeVisibility p1Vis = null;
             if (GameManager.Instance != null && GameManager.Instance.player1Castle != null)
             {
                 p1Vis = GameManager.Instance.player1Castle.GetComponentInChildren<CastleFacadeVisibility>();
-                if (p1Vis != null) p1Vis.SetFacadeVisibility(true); // 100% OPAQUE at start of turn
             }
 
-            if (CameraController.Instance != null) CameraController.Instance.SetMode(CameraMode.Player1Castle);
-
-            yield return new WaitForSeconds(2.5f);
-
-            // 2. PHASE 2: DRIVING PHASE
-            // Keep facade VISIBLE while driving (as requested!)
-            if (p1Vis != null) p1Vis.SetFacadeVisibility(true);
-
-            // Zoom out camera somewhat while moving castle (as requested!)
-            if (CameraController.Instance != null) CameraController.Instance.SetMode(CameraMode.DrivingCastle);
-
-            if (movementPanel != null) movementPanel.SetActive(true);
+            if (CameraController.Instance != null) CameraController.Instance.SetMode(CameraMode.SoldierSelection);
 
             CastleMovement p1Movement = GameManager.Instance?.player1Castle?.GetComponent<CastleMovement>();
-            SetupMovementButtons(p1Movement);
-
-            bool doneMoving = false;
-            if (doneMovingBtn != null)
-            {
-                doneMovingBtn.onClick.RemoveAllListeners();
-                doneMovingBtn.onClick.AddListener(() => doneMoving = true);
-            }
-
-            float driveTimer = 0f;
-            while (!doneMoving && driveTimer < 8.0f)
-            {
-                driveTimer += Time.deltaTime;
-                yield return null;
-            }
-
-            if (movementPanel != null) movementPanel.SetActive(false);
-            if (p1Movement != null) p1Movement.ReleaseMove();
-
-            // 3. PHASE 3: SOLDIER SELECTION PHASE
-            if (p1Vis != null) p1Vis.SetFacadeVisibility(false);
-            if (CameraController.Instance != null) CameraController.Instance.SetMode(CameraMode.SoldierSelection);
-            if (soldierSelectPanel != null) soldierSelectPanel.SetActive(true);
-
-            // Keep Movement Panel active alongside Soldier Selection if fuel is remaining!
             if (p1Movement != null && p1Movement.currentFuel > 0f)
             {
                 if (movementPanel != null) movementPanel.SetActive(true);
                 SetupMovementButtons(p1Movement);
             }
+            else
+            {
+                if (movementPanel != null) movementPanel.SetActive(false);
+            }
+
+            if (soldierSelectPanel != null) soldierSelectPanel.SetActive(true);
 
             Castle p1Castle = GameManager.Instance?.player1Castle;
             SlingshotLauncher launcher = FindFirstObjectByType<SlingshotLauncher>();
@@ -291,7 +334,7 @@ namespace CastleBusters.UI
                 }
             }
 
-            // Wait until user selects a soldier via bottom-center buttons
+            // Wait until user selects a soldier via bottom-center buttons (or instantly if clicked while driving!)
             while (chosenSoldier == null)
             {
                 // Dynamic driving state during soldier selection!
@@ -336,13 +379,13 @@ namespace CastleBusters.UI
             if (soldierSelectPanel != null) soldierSelectPanel.SetActive(false);
             if (p1Movement != null) p1Movement.ReleaseMove();
 
-            // Smoothly pan camera directly to the clicked active soldier (as requested!)
+            // Smoothly pan camera directly to the clicked active soldier
             if (CameraController.Instance != null && chosenSoldier != null)
             {
                 CameraController.Instance.FocusSoldier(chosenSoldier.transform);
             }
 
-            // 4. PHASE 4: Enable Trajectory Prediction & Aiming ONLY after soldier selected!
+            // Enable Trajectory Prediction & Aiming IMMEDIATELY after soldier selected!
             if (launcher != null && chosenSoldier != null)
             {
                 launcher.EnableAimingForSoldier(chosenSoldier);
