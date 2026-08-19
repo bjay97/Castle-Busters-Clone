@@ -228,12 +228,30 @@ namespace CastleBusters.Environment
 
             int texW = dynamicFacadeTexture.width;
             int texH = dynamicFacadeTexture.height;
-            int cx = Mathf.RoundToInt(u * texW);
-            int cy = Mathf.RoundToInt(v * texH);
+            int cx = Mathf.Clamp(Mathf.RoundToInt(u * texW), 0, texW - 1);
+            int cy = Mathf.Clamp(Mathf.RoundToInt(v * texH), 0, texH - 1);
 
             float rx = (radius / totalWidth) * texW;
             float ry = (radius / totalHeight) * texH;
             float avgR = (rx + ry) * 0.5f;
+
+            // Ensure impact crater aligns with solid facade artwork pixels if hit landed on transparent outer margin
+            if (dynamicFacadeTexture.GetPixel(cx, cy).a < 0.1f)
+            {
+                Vector2 dirToCenter = new Vector2(texW * 0.5f - cx, texH * 0.5f - cy).normalized;
+                int maxSteps = Mathf.RoundToInt(avgR * 1.8f);
+                for (int step = 1; step <= maxSteps; step++)
+                {
+                    int testX = Mathf.Clamp(cx + Mathf.RoundToInt(dirToCenter.x * step), 0, texW - 1);
+                    int testY = Mathf.Clamp(cy + Mathf.RoundToInt(dirToCenter.y * step), 0, texH - 1);
+                    if (dynamicFacadeTexture.GetPixel(testX, testY).a > 0.1f)
+                    {
+                        cx = testX;
+                        cy = testY;
+                        break;
+                    }
+                }
+            }
 
             float seed = Random.Range(0f, 1000f);
             float aspectX = Random.Range(0.85f, 1.25f);

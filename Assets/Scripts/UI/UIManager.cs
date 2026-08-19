@@ -317,19 +317,34 @@ namespace CastleBusters.UI
 
             if (p1Castle != null && p1Castle.soldiers.Count > 0)
             {
+                // Ensure soldiers are sorted strictly Left-to-Right by X position
+                p1Castle.soldiers.Sort((a, b) => a.transform.position.x.CompareTo(b.transform.position.x));
+
                 if (soldier1Btn != null && p1Castle.soldiers.Count >= 1)
                 {
+                    Soldier s1 = p1Castle.soldiers[0];
+                    Text t1 = soldier1Btn.GetComponentInChildren<Text>();
+                    if (t1 != null) t1.text = $"{s1.soldierName} 1 (Left)";
+                    TextMeshProUGUI t1TMP = soldier1Btn.GetComponentInChildren<TextMeshProUGUI>();
+                    if (t1TMP != null) t1TMP.text = $"{s1.soldierName} 1 (Left)";
+
                     soldier1Btn.onClick.RemoveAllListeners();
                     soldier1Btn.onClick.AddListener(() => {
-                        chosenSoldier = p1Castle.soldiers[0];
+                        chosenSoldier = s1;
                     });
                 }
 
                 if (soldier2Btn != null && p1Castle.soldiers.Count >= 2)
                 {
+                    Soldier s2 = p1Castle.soldiers[1];
+                    Text t2 = soldier2Btn.GetComponentInChildren<Text>();
+                    if (t2 != null) t2.text = $"{s2.soldierName} 2 (Right)";
+                    TextMeshProUGUI t2TMP = soldier2Btn.GetComponentInChildren<TextMeshProUGUI>();
+                    if (t2TMP != null) t2TMP.text = $"{s2.soldierName} 2 (Right)";
+
                     soldier2Btn.onClick.RemoveAllListeners();
                     soldier2Btn.onClick.AddListener(() => {
-                        chosenSoldier = p1Castle.soldiers[1];
+                        chosenSoldier = s2;
                     });
                 }
             }

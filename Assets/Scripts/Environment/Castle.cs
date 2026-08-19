@@ -43,26 +43,37 @@ namespace CastleBusters.Environment
             blocks.Clear();
             blocks.AddRange(GetComponentsInChildren<DestructibleBlock>());
 
-            int totalBlocks = blocks.Count;
-            int intactBlocks = 0;
+            float maxHP = 0f;
+            float currentHP = 0f;
 
             foreach (var block in blocks)
             {
-                if (block != null && !block.IsDestroyed)
+                if (block != null)
                 {
-                    intactBlocks++;
-                    block.OnBlockDestroyed -= HandleBlockDestroyed; // prevent duplicate
-                    block.OnBlockDestroyed += HandleBlockDestroyed;
+                    maxHP += block.maxHealth;
+                    if (!block.IsDestroyed)
+                    {
+                        currentHP += block.currentHealth;
+                    }
+
+                    block.OnBlockDestroyed -= RecalculateCastleHealth;
+                    block.OnBlockDestroyed += RecalculateCastleHealth;
+                    block.OnDamageTaken -= HandleBlockDamageTaken;
+                    block.OnDamageTaken += HandleBlockDamageTaken;
                 }
             }
 
-            maxCastleHealth = Mathf.Max(1f, totalBlocks);
-            currentCastleHealth = intactBlocks;
+            maxCastleHealth = Mathf.Max(1f, maxHP);
+            currentCastleHealth = currentHP;
             OnCastleHealthChanged?.Invoke(currentCastleHealth, maxCastleHealth);
 
-            // Register soldiers
+            // Register soldiers sorted strictly Left-to-Right by X coordinate
             soldiers.Clear();
-            soldiers.AddRange(GetComponentsInChildren<Soldier>());
+            Soldier[] foundSoldiers = GetComponentsInChildren<Soldier>();
+            List<Soldier> sortedSoldiers = new List<Soldier>(foundSoldiers);
+            sortedSoldiers.Sort((a, b) => a.transform.position.x.CompareTo(b.transform.position.x));
+            soldiers.AddRange(sortedSoldiers);
+
             foreach (var soldier in soldiers)
             {
                 if (soldier != null)
@@ -81,18 +92,23 @@ namespace CastleBusters.Environment
             }
         }
 
-        private void HandleBlockDestroyed()
+        private void HandleBlockDamageTaken(float dmg)
         {
-            if (IsDestroyed) return;
+            RecalculateCastleHealth();
+        }
 
-            // Recalculate intact blocks accurately
-            int intact = 0;
+        private void RecalculateCastleHealth()
+        {
+            float currentHP = 0f;
             foreach (var block in blocks)
             {
-                if (block != null && !block.IsDestroyed) intact++;
+                if (block != null && !block.IsDestroyed)
+                {
+                    currentHP += block.currentHealth;
+                }
             }
 
-            currentCastleHealth = intact;
+            currentCastleHealth = Mathf.Max(0f, currentHP);
             OnCastleHealthChanged?.Invoke(currentCastleHealth, maxCastleHealth);
 
             if (IsDestroyed)
@@ -130,7 +146,11 @@ namespace CastleBusters.Environment
         {
             foreach (var block in blocks)
             {
-                if (block != null) block.OnBlockDestroyed -= HandleBlockDestroyed;
+                if (block != null)
+                {
+                    block.OnBlockDestroyed -= RecalculateCastleHealth;
+                    block.OnDamageTaken -= HandleBlockDamageTaken;
+                }
             }
         }
     }

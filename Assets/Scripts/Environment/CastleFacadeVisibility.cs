@@ -79,17 +79,16 @@ namespace CastleBusters.Environment
             {
                 if (renderers[i] != null)
                 {
-                    // Keep grid block renderers disabled so dynamic masked facade is shown
-                    DestructibleBlock block = renderers[i].GetComponent<DestructibleBlock>();
-                    if (block != null)
-                    {
-                        renderers[i].enabled = false;
-                    }
-                    else
+                    if (renderers[i].gameObject.name == "FullFacadeVisual")
                     {
                         renderers[i].enabled = isVisible;
                         Color c = renderers[i].color;
                         renderers[i].color = new Color(c.r, c.g, c.b, 1.0f);
+                    }
+                    else
+                    {
+                        // Ensure grid block tile renderers never overlay the dynamic masked facade
+                        renderers[i].enabled = false;
                     }
                 }
             }
