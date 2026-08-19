@@ -324,6 +324,196 @@ namespace CastleBusters.Environment
                     }
                 }
             }
+
+            // Perform automatic pixel flood-fill cleanup for any isolated floating texture & physics sections
+            CleanupFloatingTextureSections();
+        }
+
+        public void CleanupFloatingTextureSections()
+        {
+            if (dynamicFacadeTexture == null) return;
+
+            int texW = dynamicFacadeTexture.width;
+            int texH = dynamicFacadeTexture.height;
+
+            // Downsampled 64x48 cell grid for fast BFS connectivity and speckle cleanup
+            int gridW = 64;
+            int gridH = 48;
+            float stepX = (float)texW / gridW;
+            float stepY = (float)texH / gridH;
+
+            bool[,] hasContent = new bool[gridW, gridH];
+
+            // 1. Full pixel occupancy check per cell to catch all pixel fragments & speckles
+            for (int gy = 0; gy < gridH; gy++)
+            {
+                int startPy = Mathf.Clamp(Mathf.FloorToInt(gy * stepY), 0, texH - 1);
+                int endPy = Mathf.Clamp(Mathf.CeilToInt((gy + 1) * stepY), 0, texH - 1);
+
+                for (int gx = 0; gx < gridW; gx++)
+                {
+                    int startPx = Mathf.Clamp(Mathf.FloorToInt(gx * stepX), 0, texW - 1);
+                    int endPx = Mathf.Clamp(Mathf.CeilToInt((gx + 1) * stepX), 0, texW - 1);
+
+                    bool cellHasContent = false;
+                    for (int py = startPy; py <= endPy && !cellHasContent; py += 2)
+                    {
+                        for (int px = startPx; px <= endPx && !cellHasContent; px += 2)
+                        {
+                            if (dynamicFacadeTexture.GetPixel(px, py).a > 0.05f)
+                            {
+                                cellHasContent = true;
+                            }
+                        }
+                    }
+                    hasContent[gx, gy] = cellHasContent;
+                }
+            }
+
+            // 2. BFS from bottom row (gy = 0) to find all ground-anchored cells
+            bool[,] isAnchored = new bool[gridW, gridH];
+            System.Collections.Generic.Queue<Vector2Int> queue = new System.Collections.Generic.Queue<Vector2Int>();
+
+            for (int gx = 0; gx < gridW; gx++)
+            {
+                if (hasContent[gx, 0])
+                {
+                    isAnchored[gx, 0] = true;
+                    queue.Enqueue(new Vector2Int(gx, 0));
+                }
+            }
+
+            Vector2Int[] dirs = new Vector2Int[]
+            {
+                new Vector2Int(0, 1),
+                new Vector2Int(0, -1),
+                new Vector2Int(1, 0),
+                new Vector2Int(-1, 0)
+            };
+
+            while (queue.Count > 0)
+            {
+                Vector2Int curr = queue.Dequeue();
+                foreach (var dir in dirs)
+                {
+                    int nx = curr.x + dir.x;
+                    int ny = curr.y + dir.y;
+                    if (nx >= 0 && nx < gridW && ny >= 0 && ny < gridH)
+                    {
+                        if (hasContent[nx, ny] && !isAnchored[nx, ny])
+                        {
+                            isAnchored[nx, ny] = true;
+                            queue.Enqueue(new Vector2Int(nx, ny));
+                        }
+                    }
+                }
+            }
+
+            // 3. Remove tiny floating speckle clusters (< 4 connected cells) even if anchored
+            bool[,] visited = new bool[gridW, gridH];
+            for (int gy = 0; gy < gridH; gy++)
+            {
+                for (int gx = 0; gx < gridW; gx++)
+                {
+                    if (hasContent[gx, gy] && !visited[gx, gy])
+                    {
+                        System.Collections.Generic.List<Vector2Int> cluster = new System.Collections.Generic.List<Vector2Int>();
+                        System.Collections.Generic.Queue<Vector2Int> cQueue = new System.Collections.Generic.Queue<Vector2Int>();
+
+                        visited[gx, gy] = true;
+                        cQueue.Enqueue(new Vector2Int(gx, gy));
+
+                        while (cQueue.Count > 0)
+                        {
+                            Vector2Int cCurr = cQueue.Dequeue();
+                            cluster.Add(cCurr);
+
+                            foreach (var dir in dirs)
+                            {
+                                int nx = cCurr.x + dir.x;
+                                int ny = cCurr.y + dir.y;
+                                if (nx >= 0 && nx < gridW && ny >= 0 && ny < gridH)
+                                {
+                                    if (hasContent[nx, ny] && !visited[nx, ny])
+                                    {
+                                        visited[nx, ny] = true;
+                                        cQueue.Enqueue(new Vector2Int(nx, ny));
+                                    }
+                                }
+                            }
+                        }
+
+                        // If isolated cluster is tiny fragment (< 4 cells), mark for removal
+                        if (cluster.Count < 4)
+                        {
+                            foreach (var cell in cluster)
+                            {
+                                isAnchored[cell.x, cell.y] = false;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Clear all pixels & destroy underlying blocks for unanchored/speckle cells
+            bool clearedAny = false;
+            for (int gy = 0; gy < gridH; gy++)
+            {
+                for (int gx = 0; gx < gridW; gx++)
+                {
+                    if (hasContent[gx, gy] && !isAnchored[gx, gy])
+                    {
+                        int minX = Mathf.Clamp(Mathf.FloorToInt(gx * stepX), 0, texW - 1);
+                        int maxX = Mathf.Clamp(Mathf.CeilToInt((gx + 1) * stepX), 0, texW - 1);
+                        int minY = Mathf.Clamp(Mathf.FloorToInt(gy * stepY), 0, texH - 1);
+                        int maxY = Mathf.Clamp(Mathf.CeilToInt((gy + 1) * stepY), 0, texH - 1);
+
+                        for (int py = minY; py <= maxY; py++)
+                        {
+                            for (int px = minX; px <= maxX; px++)
+                            {
+                                Color c = dynamicFacadeTexture.GetPixel(px, py);
+                                if (c.a > 0f)
+                                {
+                                    c.a = 0f;
+                                    dynamicFacadeTexture.SetPixel(px, py, c);
+                                    clearedAny = true;
+                                }
+                            }
+                        }
+
+                        // Clear matching physics blocks in this unanchored cell space
+                        float localX = ((float)gx / gridW) * totalWidth - totalWidth / 2f;
+                        float localY = ((float)gy / gridH) * totalHeight - totalHeight / 2f;
+                        float cellW = totalWidth / gridW;
+                        float cellH = totalHeight / gridH;
+
+                        Vector2 cellCenterLocal = new Vector2(localX + cellW / 2f, localY + cellH / 2f);
+                        Vector2 cellWorldPos = transform.TransformPoint(cellCenterLocal);
+
+                        Collider2D[] cols = Physics2D.OverlapBoxAll(cellWorldPos, new Vector2(cellW * 1.3f, cellH * 1.3f), 0f);
+                        foreach (var col in cols)
+                        {
+                            if (col != null && col.transform.IsChildOf(transform))
+                            {
+                                DestructibleBlock b = col.GetComponent<DestructibleBlock>();
+                                if (b != null && !b.IsDestroyed)
+                                {
+                                    Destroy(b.gameObject);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (clearedAny)
+            {
+                dynamicFacadeTexture.Apply();
+
+                Castle parentCastle = GetComponentInParent<Castle>();
+                if (parentCastle != null) parentCastle.RefreshCastleHealth();
+            }
         }
 
         private bool isEvaluatingCollapse = false;
