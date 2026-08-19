@@ -13,6 +13,9 @@ namespace CastleBusters.Combat
         public float splashDamage = 40f;
         public float maxLifetime = 8f;
 
+        [Header("Speed & Physics Config")]
+        public float speedMultiplier = 0.65f; // Tune flight speed per projectile type (e.g. 0.65f for slower clear flight trajectory)
+
         protected Rigidbody2D rb;
         private bool hasExploded = false;
 

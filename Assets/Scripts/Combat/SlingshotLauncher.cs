@@ -227,7 +227,17 @@ namespace CastleBusters.Combat
                     dragVector = dragVector.normalized * maxDragDistance;
                 }
 
-                Vector2 launchVelocity = dragVector * launchForceMultiplier;
+                float projSpeedMult = 1.0f;
+                if (activeSoldier != null && activeSoldier.projectilePrefab != null)
+                {
+                    Projectile projComp = activeSoldier.projectilePrefab.GetComponent<Projectile>();
+                    if (projComp != null)
+                    {
+                        projSpeedMult = projComp.speedMultiplier;
+                    }
+                }
+
+                Vector2 launchVelocity = dragVector * launchForceMultiplier * projSpeedMult;
 
                 // Dynamically update camera zoom & X-offset based on pull distance!
                 float dragRatio = (maxDragDistance > 0f) ? (dragVector.magnitude / maxDragDistance) : 0f;
