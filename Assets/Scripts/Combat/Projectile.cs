@@ -35,6 +35,11 @@ namespace CastleBusters.Combat
             rb = GetComponent<Rigidbody2D>();
             spriteRenderer = GetComponent<SpriteRenderer>();
             if (spriteRenderer == null) spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+
+            if (spriteRenderer != null)
+            {
+                spriteRenderer.sortingOrder = 50; // Flying projectile renders above facade (20) and soldiers (10-16)
+            }
         }
 
         protected virtual void Start()
@@ -182,6 +187,17 @@ namespace CastleBusters.Combat
             if (vfxPrefabToSpawn != null)
             {
                 GameObject vfxInstance = Instantiate(vfxPrefabToSpawn, position, Quaternion.identity);
+
+                // Force all particle renderers and child renderers to sortingOrder = 100 so explosions render ON TOP of castle facade (20)
+                int topSortingOrder = 100;
+                Renderer[] renderers = vfxInstance.GetComponentsInChildren<Renderer>(true);
+                foreach (var r in renderers)
+                {
+                    if (r != null)
+                    {
+                        r.sortingOrder = topSortingOrder;
+                    }
+                }
 
                 // Auto cleanup particle explosion after 3.5 seconds
                 Destroy(vfxInstance, 3.5f);
