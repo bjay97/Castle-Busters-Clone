@@ -10,6 +10,13 @@ namespace CastleBusters.Environment
         public float worldHeightScale = 36f;    // Extra height coverage for high altitude missile camera tracking
         public float centerYOffset = 8f;        // Vertical centering offset to cover high sky and low ground
 
+        [Header("Blur & Focus Config")]
+        [Range(0.001f, 0.012f)]
+        public float blurAmount = 0.004f;      // Soft Gaussian blur filter for background depth
+        public Color atmosphericTint = new Color(0.92f, 0.94f, 0.98f, 0.95f); // Soft atmospheric tinting so castles pop
+
+        private Material blurMaterial;
+
         private void Start()
         {
             SetupBackgroundLayers();
@@ -26,6 +33,15 @@ namespace CastleBusters.Environment
             GameObject container = new GameObject("BackgroundContainer");
             container.transform.SetParent(transform);
             container.transform.position = Vector3.zero;
+
+            // Load 2D Gaussian blur shader
+            Shader blurShader = Shader.Find("Custom/2DBackgroundBlur");
+            if (blurShader != null)
+            {
+                blurMaterial = new Material(blurShader);
+                blurMaterial.SetFloat("_BlurSize", blurAmount);
+                blurMaterial.SetColor("_Color", atmosphericTint);
+            }
 
             string basePath = "Assets/Free 2D Cartoon Parallax Background/!_Moutain/";
 
@@ -78,6 +94,15 @@ namespace CastleBusters.Environment
                     SpriteRenderer sr = tileObj.AddComponent<SpriteRenderer>();
                     sr.sprite = layerSprite;
                     sr.sortingOrder = sortingOrder;
+
+                    if (blurMaterial != null)
+                    {
+                        sr.material = blurMaterial;
+                    }
+                    else
+                    {
+                        sr.color = atmosphericTint;
+                    }
                 }
             }
         }
