@@ -1,6 +1,7 @@
 using UnityEngine;
 using CastleBusters.Environment;
 using CastleBusters.Units;
+using CastleBusters.Core;
 
 namespace CastleBusters.Combat
 {
@@ -15,6 +16,10 @@ namespace CastleBusters.Combat
 
         [Header("Speed & Physics Config")]
         public float speedMultiplier = 0.65f; // Tune flight speed per projectile type (e.g. 0.65f for slower clear flight trajectory)
+
+        [Header("Friendly Fire Config")]
+        public PlayerSide ownerSide = PlayerSide.Player1; // Firing player side
+        public bool allowFriendlyFire = false; // Disabled by default to prevent self/friendly damage and facade carving
 
         protected Rigidbody2D rb;
         private bool hasExploded = false;
@@ -78,13 +83,20 @@ namespace CastleBusters.Combat
             DestructibleBlock block = collision.gameObject.GetComponent<DestructibleBlock>();
             if (block != null)
             {
-                block.TakeDamage(impactSpeed * directDamageMultiplier);
+                Castle blockCastle = block.GetComponentInParent<Castle>();
+                if (blockCastle == null || allowFriendlyFire || blockCastle.ownerSide != ownerSide)
+                {
+                    block.TakeDamage(impactSpeed * directDamageMultiplier);
+                }
             }
 
             Soldier soldier = collision.gameObject.GetComponent<Soldier>();
             if (soldier != null)
             {
-                soldier.TakeDamage(impactSpeed * directDamageMultiplier * 0.8f);
+                if (allowFriendlyFire || soldier.ownerSide != ownerSide)
+                {
+                    soldier.TakeDamage(impactSpeed * directDamageMultiplier * 0.8f);
+                }
             }
 
             // Explosion splash
@@ -101,8 +113,20 @@ namespace CastleBusters.Combat
             // Spawn explosion VFX at impact position
             SpawnExplosionVFX(transform.position);
 
-            // Smooth facade impact carving with organic crater brush
-            FacadeGridBuilder.CarveAllFacadesAt(transform.position, explosionRadius);
+            // Carve facade ONLY for enemy castles (skip friendly castle if friendly fire disabled)
+            FacadeGridBuilder[] builders = FindObjectsByType<FacadeGridBuilder>(FindObjectsSortMode.None);
+            foreach (var builder in builders)
+            {
+                if (builder != null)
+                {
+                    Castle parentCastle = builder.GetComponentInParent<Castle>();
+                    if (parentCastle != null && !allowFriendlyFire && parentCastle.ownerSide == ownerSide)
+                    {
+                        continue; // Skip carving friendly castle facade!
+                    }
+                    builder.CarveFacadeImpact(transform.position, explosionRadius);
+                }
+            }
 
             Collider2D[] hitColliders = Physics2D.OverlapCircleAll(transform.position, explosionRadius);
             foreach (var hit in hitColliders)
@@ -112,13 +136,20 @@ namespace CastleBusters.Combat
                 DestructibleBlock block = hit.GetComponent<DestructibleBlock>();
                 if (block != null)
                 {
-                    block.TakeDamage(splashDamage);
+                    Castle blockCastle = block.GetComponentInParent<Castle>();
+                    if (blockCastle == null || allowFriendlyFire || blockCastle.ownerSide != ownerSide)
+                    {
+                        block.TakeDamage(splashDamage);
+                    }
                 }
 
                 Soldier soldier = hit.GetComponent<Soldier>();
                 if (soldier != null)
                 {
-                    soldier.TakeDamage(splashDamage * 0.5f);
+                    if (allowFriendlyFire || soldier.ownerSide != ownerSide)
+                    {
+                        soldier.TakeDamage(splashDamage * 0.5f);
+                    }
                 }
 
                 Rigidbody2D hitRb = hit.GetComponent<Rigidbody2D>();

@@ -11,6 +11,7 @@ namespace CastleBusters.Environment
         public float moveSpeed = 3.5f;
         public float minX = -10f;
         public float maxX = -2f;
+        public float minimumCastleSeparation = 12f; // Minimum distance between castles to prevent touching/collision
 
         [Header("Fuel Settings")]
         public float maxFuel = 100f;
@@ -119,8 +120,26 @@ namespace CastleBusters.Environment
         {
             if (currentFuel <= 0f) return;
 
+            float effectiveMinX = minX;
+            float effectiveMaxX = maxX;
+
+            // Enforce minimum separation distance from opposing castle so castles NEVER collide or touch
+            if (castle != null && GameManager.Instance != null)
+            {
+                if (castle.ownerSide == PlayerSide.Player1 && GameManager.Instance.player2Castle != null)
+                {
+                    float maxAllowedX = GameManager.Instance.player2Castle.transform.position.x - minimumCastleSeparation;
+                    effectiveMaxX = Mathf.Min(maxX, maxAllowedX);
+                }
+                else if (castle.ownerSide == PlayerSide.Player2 && GameManager.Instance.player1Castle != null)
+                {
+                    float minAllowedX = GameManager.Instance.player1Castle.transform.position.x + minimumCastleSeparation;
+                    effectiveMinX = Mathf.Max(minX, minAllowedX);
+                }
+            }
+
             float moveAmount = direction * moveSpeed * Time.deltaTime;
-            float newX = Mathf.Clamp(transform.position.x + moveAmount, minX, maxX);
+            float newX = Mathf.Clamp(transform.position.x + moveAmount, effectiveMinX, effectiveMaxX);
             float actualDelta = newX - transform.position.x;
 
             if (Mathf.Abs(actualDelta) > 0.0001f)

@@ -296,6 +296,12 @@ namespace CastleBusters.Combat
             Vector3 spawnPos = soldier.transform.position + (Vector3)(launchVelocity.normalized * 0.8f);
             GameObject projObj = Instantiate(soldier.projectilePrefab, spawnPos, Quaternion.identity);
 
+            Projectile projComp = projObj.GetComponent<Projectile>();
+            if (projComp != null)
+            {
+                projComp.ownerSide = soldier.ownerSide;
+            }
+
             Collider2D projCol = projObj.GetComponent<Collider2D>();
             Collider2D soldierCol = soldier.GetComponent<Collider2D>();
             if (projCol != null && soldierCol != null)
