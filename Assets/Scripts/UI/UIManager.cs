@@ -320,6 +320,12 @@ namespace CastleBusters.UI
                 // Ensure soldiers are sorted strictly Left-to-Right by X position
                 p1Castle.soldiers.Sort((a, b) => a.transform.position.x.CompareTo(b.transform.position.x));
 
+                // Reset all soldiers to bright visual state at turn start
+                foreach (var s in p1Castle.soldiers)
+                {
+                    if (s != null) s.SetSelectionVisualState(true);
+                }
+
                 if (soldier1Btn != null && p1Castle.soldiers.Count >= 1)
                 {
                     Soldier s1 = p1Castle.soldiers[0];
@@ -393,6 +399,18 @@ namespace CastleBusters.UI
             if (movementPanel != null) movementPanel.SetActive(false);
             if (soldierSelectPanel != null) soldierSelectPanel.SetActive(false);
             if (p1Movement != null) p1Movement.ReleaseMove();
+
+            // Darken unselected soldier & keep active chosen soldier bright!
+            if (p1Castle != null)
+            {
+                foreach (var s in p1Castle.soldiers)
+                {
+                    if (s != null)
+                    {
+                        s.SetSelectionVisualState(s == chosenSoldier);
+                    }
+                }
+            }
 
             // Smoothly pan camera directly to the clicked active soldier
             if (CameraController.Instance != null && chosenSoldier != null)
