@@ -74,14 +74,23 @@ namespace CastleBusters.Environment
 
         public void SetFacadeVisibility(bool isVisible)
         {
-            DestructibleBlock[] blocks = GetComponentsInChildren<DestructibleBlock>();
-            for (int i = 0; i < blocks.Length; i++)
+            SpriteRenderer[] renderers = GetComponentsInChildren<SpriteRenderer>(true);
+            for (int i = 0; i < renderers.Length; i++)
             {
-                if (blocks[i] != null && blocks[i].spriteRenderer != null)
+                if (renderers[i] != null)
                 {
-                    blocks[i].spriteRenderer.enabled = isVisible;
-                    Color c = blocks[i].spriteRenderer.color;
-                    blocks[i].spriteRenderer.color = new Color(c.r, c.g, c.b, 1.0f); // Always 100% opaque when visible
+                    // Keep grid block renderers disabled so dynamic masked facade is shown
+                    DestructibleBlock block = renderers[i].GetComponent<DestructibleBlock>();
+                    if (block != null)
+                    {
+                        renderers[i].enabled = false;
+                    }
+                    else
+                    {
+                        renderers[i].enabled = isVisible;
+                        Color c = renderers[i].color;
+                        renderers[i].color = new Color(c.r, c.g, c.b, 1.0f);
+                    }
                 }
             }
         }

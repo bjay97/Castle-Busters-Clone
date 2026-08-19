@@ -19,11 +19,47 @@ namespace CastleBusters.Environment
         public float blockHealth = 25f;
         public bool generateOnStart = true;
 
+        private Texture2D dynamicFacadeTexture;
+        private SpriteRenderer fullFacadeRenderer;
+        private Sprite fullFacadeSprite;
+
+        private void Awake()
+        {
+            if (Application.isPlaying)
+            {
+                EnsureFacadeVisualInitialized();
+            }
+        }
+
         private void Start()
         {
-            if (Application.isPlaying && generateOnStart && transform.childCount == 0)
+            if (Application.isPlaying)
             {
-                GenerateSlicedCastleFacade();
+                EnsureFacadeVisualInitialized();
+            }
+        }
+
+        public void EnsureFacadeVisualInitialized()
+        {
+            if (dynamicFacadeTexture == null)
+            {
+                Transform existingFullObj = transform.Find("FullFacadeVisual");
+                if (existingFullObj != null)
+                {
+                    DestroyImmediate(existingFullObj.gameObject);
+                }
+
+                CreateFullDynamicFacadeVisual();
+            }
+
+            // Disable all underlying tile SpriteRenderers so full dynamic mask facade visual is shown
+            SpriteRenderer[] childRenderers = GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var sr in childRenderers)
+            {
+                if (sr != null && sr != fullFacadeRenderer)
+                {
+                    sr.enabled = false;
+                }
             }
         }
 
@@ -52,18 +88,11 @@ namespace CastleBusters.Environment
                 DestroyImmediate(transform.GetChild(i).gameObject);
             }
 
+            // Create Dynamic Masked Facade Texture & Renderer
+            CreateFullDynamicFacadeVisual();
+
             float chunkWidth = totalWidth / columns;
             float chunkHeight = totalHeight / rows;
-
-            Vector2 origin = transform.position;
-            Vector2 startPos = origin - new Vector2(totalWidth / 2f - chunkWidth / 2f, totalHeight / 2f - chunkHeight / 2f);
-
-            // Calculate Texture UV slices if texture is assigned
-            Sprite[,] slicedSprites = null;
-            if (castleTexture != null)
-            {
-                slicedSprites = SliceTextureIntoSprites(castleTexture, columns, rows);
-            }
 
             for (int r = 0; r < rows; r++)
             {
@@ -80,27 +109,12 @@ namespace CastleBusters.Environment
                     chunk.transform.SetParent(transform);
                     chunk.transform.localPosition = localPos;
 
-                    // Add SpriteRenderer
+                    // Invisible SpriteRenderer for underlying physics grid (visual handled by full dynamic texture facade)
                     SpriteRenderer sr = chunk.AddComponent<SpriteRenderer>();
-
-                    if (slicedSprites != null && slicedSprites[c, r] != null)
-                    {
-                        sr.sprite = slicedSprites[c, r];
-                        float spriteW = sr.sprite.bounds.size.x;
-                        float spriteH = sr.sprite.bounds.size.y;
-                        if (spriteW > 0 && spriteH > 0)
-                        {
-                            chunk.transform.localScale = new Vector3(chunkWidth / spriteW, chunkHeight / spriteH, 1f);
-                        }
-                    }
-                    else
-                    {
-                        sr.sprite = CreateDefaultSquareSprite();
-                        sr.color = fallbackColor;
-                        chunk.transform.localScale = new Vector3(chunkWidth, chunkHeight, 1f);
-                    }
-
-                    sr.sortingOrder = 2;
+                    sr.sprite = CreateDefaultSquareSprite();
+                    sr.color = fallbackColor;
+                    sr.enabled = false; // Hide individual tiles so dynamic masked texture is visible
+                    chunk.transform.localScale = new Vector3(chunkWidth, chunkHeight, 1f);
 
                     BoxCollider2D col = chunk.AddComponent<BoxCollider2D>();
                     col.size = Vector2.one;
@@ -125,7 +139,173 @@ namespace CastleBusters.Environment
             if (visibility == null) visibility = GetComponentInParent<CastleFacadeVisibility>();
             if (visibility != null) visibility.RefreshVisibility();
 
-            Debug.Log($"[FacadeGridBuilder] Successfully generated tight castle facade with {columns * rows} sliced blocks!");
+            Debug.Log($"[FacadeGridBuilder] Successfully generated smooth masked castle facade with {columns * rows} grid colliders!");
+        }
+
+        private void CreateFullDynamicFacadeVisual()
+        {
+            if (castleTexture == null)
+            {
+                SpriteRenderer[] childSRs = GetComponentsInChildren<SpriteRenderer>(true);
+                foreach (var sr in childSRs)
+                {
+                    if (sr != null && sr.sprite != null && sr.sprite.texture != null)
+                    {
+                        castleTexture = sr.sprite.texture;
+                        break;
+                    }
+                }
+            }
+
+            if (castleTexture != null)
+            {
+                RenderTexture rt = RenderTexture.GetTemporary(castleTexture.width, castleTexture.height, 0, RenderTextureFormat.ARGB32);
+                Graphics.Blit(castleTexture, rt);
+                RenderTexture prev = RenderTexture.active;
+                RenderTexture.active = rt;
+                dynamicFacadeTexture = new Texture2D(castleTexture.width, castleTexture.height, TextureFormat.RGBA32, false);
+                dynamicFacadeTexture.ReadPixels(new Rect(0, 0, castleTexture.width, castleTexture.height), 0, 0);
+                dynamicFacadeTexture.Apply();
+                RenderTexture.active = prev;
+                RenderTexture.ReleaseTemporary(rt);
+            }
+            else
+            {
+                int w = 512;
+                int h = 384;
+                dynamicFacadeTexture = new Texture2D(w, h, TextureFormat.RGBA32, false);
+                Color[] colors = new Color[w * h];
+                for (int i = 0; i < colors.Length; i++) colors[i] = fallbackColor;
+                dynamicFacadeTexture.SetPixels(colors);
+                dynamicFacadeTexture.Apply();
+            }
+
+            GameObject fullObj = new GameObject("FullFacadeVisual");
+            fullObj.transform.SetParent(transform);
+            fullObj.transform.localPosition = Vector3.zero;
+            fullObj.transform.localRotation = Quaternion.identity;
+
+            fullFacadeRenderer = fullObj.AddComponent<SpriteRenderer>();
+            fullFacadeSprite = Sprite.Create(dynamicFacadeTexture, new Rect(0, 0, dynamicFacadeTexture.width, dynamicFacadeTexture.height), new Vector2(0.5f, 0.5f), 100f);
+            fullFacadeRenderer.sprite = fullFacadeSprite;
+
+            float spriteW = fullFacadeSprite.bounds.size.x;
+            float spriteH = fullFacadeSprite.bounds.size.y;
+            fullObj.transform.localScale = new Vector3(totalWidth / spriteW, totalHeight / spriteH, 1f);
+            fullFacadeRenderer.sortingOrder = 3;
+        }
+
+        public static void CarveAllFacadesAt(Vector2 worldPos, float radius)
+        {
+            FacadeGridBuilder[] builders = FindObjectsByType<FacadeGridBuilder>(FindObjectsSortMode.None);
+            foreach (var builder in builders)
+            {
+                if (builder != null)
+                {
+                    builder.CarveFacadeImpact(worldPos, radius);
+                }
+            }
+        }
+
+        public void CarveFacadeImpact(Vector2 worldPos, float radius)
+        {
+            if (dynamicFacadeTexture == null)
+            {
+                EnsureFacadeVisualInitialized();
+            }
+            if (dynamicFacadeTexture == null) return;
+
+            Vector3 localPos = transform.InverseTransformPoint(worldPos);
+
+            // Bounds check
+            if (Mathf.Abs(localPos.x) > (totalWidth / 2f + radius) || Mathf.Abs(localPos.y) > (totalHeight / 2f + radius))
+            {
+                return;
+            }
+
+            float u = (localPos.x + totalWidth / 2f) / totalWidth;
+            float v = (localPos.y + totalHeight / 2f) / totalHeight;
+
+            int texW = dynamicFacadeTexture.width;
+            int texH = dynamicFacadeTexture.height;
+            int cx = Mathf.RoundToInt(u * texW);
+            int cy = Mathf.RoundToInt(v * texH);
+
+            float rx = (radius / totalWidth) * texW;
+            float ry = (radius / totalHeight) * texH;
+            float avgR = (rx + ry) * 0.5f;
+
+            float seed = Random.Range(0f, 1000f);
+            float aspectX = Random.Range(0.85f, 1.25f);
+            float aspectY = Random.Range(0.85f, 1.25f);
+            float rot = Random.Range(0f, Mathf.PI * 2f);
+            float cosR = Mathf.Cos(rot);
+            float sinR = Mathf.Sin(rot);
+
+            int minX = Mathf.Clamp(Mathf.FloorToInt(cx - avgR * 1.5f), 0, texW - 1);
+            int maxX = Mathf.Clamp(Mathf.CeilToInt(cx + avgR * 1.5f), 0, texW - 1);
+            int minY = Mathf.Clamp(Mathf.FloorToInt(cy - avgR * 1.5f), 0, texH - 1);
+            int maxY = Mathf.Clamp(Mathf.CeilToInt(cy + avgR * 1.5f), 0, texH - 1);
+
+            bool modified = false;
+            for (int y = minY; y <= maxY; y++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    float dx = (x - cx);
+                    float dy = (y - cy);
+
+                    float rdx = (dx * cosR - dy * sinR) / aspectX;
+                    float rdy = (dx * sinR + dy * cosR) / aspectY;
+
+                    float dist = Mathf.Sqrt(rdx * rdx + rdy * rdy);
+                    float angle = Mathf.Atan2(rdy, rdx);
+
+                    float noise = Mathf.Sin(angle * 4f + seed) * 0.18f
+                                + Mathf.Cos(angle * 7f + seed * 1.5f) * 0.12f
+                                + Mathf.Sin(angle * 12f + seed * 3f) * 0.06f;
+
+                    float craterRadius = avgR * (1.0f + noise);
+
+                    if (dist <= craterRadius)
+                    {
+                        Color col = dynamicFacadeTexture.GetPixel(x, y);
+                        if (col.a > 0f)
+                        {
+                            if (dist <= craterRadius - 1.5f)
+                            {
+                                col.a = 0f;
+                            }
+                            else
+                            {
+                                float edgeFactor = (dist - (craterRadius - 1.5f)) / 1.5f;
+                                col.a = Mathf.Min(col.a, Mathf.Clamp01(edgeFactor));
+                            }
+                            dynamicFacadeTexture.SetPixel(x, y, col);
+                            modified = true;
+                        }
+                    }
+                }
+            }
+
+            if (modified)
+            {
+                dynamicFacadeTexture.Apply();
+            }
+
+            // Damage underlying grid blocks within blast radius
+            DestructibleBlock[] blocks = GetComponentsInChildren<DestructibleBlock>();
+            foreach (var b in blocks)
+            {
+                if (b != null && !b.IsDestroyed)
+                {
+                    float distToBlock = Vector2.Distance(worldPos, b.transform.position);
+                    if (distToBlock <= radius * 1.2f)
+                    {
+                        b.TakeDamage(blockHealth * 2f); // ensure destruction inside crater
+                    }
+                }
+            }
         }
 
         private bool isEvaluatingCollapse = false;
@@ -208,6 +388,9 @@ namespace CastleBusters.Environment
                 {
                     if (grid[c, r] != null && !grid[c, r].IsDestroyed && !isAnchored[c, r])
                     {
+                        // Carve out unanchored block area from facade texture
+                        CarveRectangleLocal(c * chunkW - totalWidth / 2f, r * chunkH - totalHeight / 2f, chunkW, chunkH);
+
                         // Unsubscribe listener so Destroy doesn't trigger recursive checks
                         grid[c, r].OnBlockDestroyed -= () => CheckStructuralCollapse(c, r);
                         toDestroy.Add(grid[c, r].gameObject);
@@ -229,25 +412,39 @@ namespace CastleBusters.Environment
             isEvaluatingCollapse = false;
         }
 
-        private Sprite[,] SliceTextureIntoSprites(Texture2D tex, int cols, int rows)
+        private void CarveRectangleLocal(float localX, float localY, float width, float height)
         {
-            Sprite[,] sprites = new Sprite[cols, rows];
+            if (dynamicFacadeTexture == null) return;
 
-            int texW = tex.width;
-            int texH = tex.height;
-            float sliceW = (float)texW / cols;
-            float sliceH = (float)texH / rows;
+            int texW = dynamicFacadeTexture.width;
+            int texH = dynamicFacadeTexture.height;
 
-            for (int r = 0; r < rows; r++)
+            float minU = (localX + totalWidth / 2f) / totalWidth;
+            float maxU = (localX + width + totalWidth / 2f) / totalWidth;
+            float minV = (localY + totalHeight / 2f) / totalHeight;
+            float maxV = (localY + height + totalHeight / 2f) / totalHeight;
+
+            int startX = Mathf.Clamp(Mathf.FloorToInt(minU * texW), 0, texW - 1);
+            int endX = Mathf.Clamp(Mathf.CeilToInt(maxU * texW), 0, texW - 1);
+            int startY = Mathf.Clamp(Mathf.FloorToInt(minV * texH), 0, texH - 1);
+            int endY = Mathf.Clamp(Mathf.CeilToInt(maxV * texH), 0, texH - 1);
+
+            bool modified = false;
+            for (int y = startY; y <= endY; y++)
             {
-                for (int c = 0; c < cols; c++)
+                for (int x = startX; x <= endX; x++)
                 {
-                    Rect rect = new Rect(c * sliceW, r * sliceH, sliceW, sliceH);
-                    sprites[c, r] = Sprite.Create(tex, rect, new Vector2(0.5f, 0.5f), 100f);
+                    Color col = dynamicFacadeTexture.GetPixel(x, y);
+                    if (col.a > 0f)
+                    {
+                        col.a = 0f;
+                        dynamicFacadeTexture.SetPixel(x, y, col);
+                        modified = true;
+                    }
                 }
             }
 
-            return sprites;
+            if (modified) dynamicFacadeTexture.Apply();
         }
 
         private Sprite CreateDefaultSquareSprite()
@@ -261,3 +458,4 @@ namespace CastleBusters.Environment
         }
     }
 }
+

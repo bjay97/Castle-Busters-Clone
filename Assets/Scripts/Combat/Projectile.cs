@@ -53,6 +53,9 @@ namespace CastleBusters.Combat
         {
             hasExploded = true;
 
+            // Smooth facade impact carving with organic crater brush
+            FacadeGridBuilder.CarveAllFacadesAt(transform.position, explosionRadius);
+
             Collider2D[] hitColliders = Physics2D.OverlapCircleAll(transform.position, explosionRadius);
             foreach (var hit in hitColliders)
             {
