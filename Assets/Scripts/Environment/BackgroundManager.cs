@@ -10,16 +10,35 @@ namespace CastleBusters.Environment
         public float worldHeightScale = 36f;    // Extra height coverage for high altitude missile camera tracking
         public float centerYOffset = 8f;        // Vertical centering offset to cover high sky and low ground
 
-        [Header("Blur & Focus Config")]
-        [Range(0.001f, 0.012f)]
-        public float blurAmount = 0.004f;      // Soft Gaussian blur filter for background depth
-        public Color atmosphericTint = new Color(0.92f, 0.94f, 0.98f, 0.95f); // Soft atmospheric tinting so castles pop
+        [Header("Blur & Focus Config (Tweak Live in Inspector)")]
+        public bool enableBlurShader = false;   // Toggle blur shader on/off (default OFF for crisp clean background)
+        [Range(0.0f, 0.005f)]
+        public float blurAmount = 0.001f;       // Ultra-subtle blur size if blur shader is enabled
+        public Color atmosphericTint = new Color(0.98f, 0.98f, 1.0f, 1.0f); // Soft tinting color for background focus
 
         private Material blurMaterial;
 
         private void Start()
         {
             SetupBackgroundLayers();
+        }
+
+        private void OnValidate()
+        {
+            // Allows live Inspector parameter tuning in Editor / Play mode!
+            if (Application.isPlaying)
+            {
+                UpdateMaterialSettings();
+            }
+        }
+
+        private void UpdateMaterialSettings()
+        {
+            if (blurMaterial != null)
+            {
+                blurMaterial.SetFloat("_BlurSize", enableBlurShader ? blurAmount : 0f);
+                blurMaterial.SetColor("_Color", atmosphericTint);
+            }
         }
 
         public void SetupBackgroundLayers()
@@ -34,13 +53,12 @@ namespace CastleBusters.Environment
             container.transform.SetParent(transform);
             container.transform.position = Vector3.zero;
 
-            // Load 2D Gaussian blur shader
+            // Load 2D Gaussian blur shader if available
             Shader blurShader = Shader.Find("Custom/2DBackgroundBlur");
             if (blurShader != null)
             {
                 blurMaterial = new Material(blurShader);
-                blurMaterial.SetFloat("_BlurSize", blurAmount);
-                blurMaterial.SetColor("_Color", atmosphericTint);
+                UpdateMaterialSettings();
             }
 
             string basePath = "Assets/Free 2D Cartoon Parallax Background/!_Moutain/";
@@ -95,7 +113,7 @@ namespace CastleBusters.Environment
                     sr.sprite = layerSprite;
                     sr.sortingOrder = sortingOrder;
 
-                    if (blurMaterial != null)
+                    if (enableBlurShader && blurMaterial != null)
                     {
                         sr.material = blurMaterial;
                     }
