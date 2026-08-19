@@ -34,7 +34,7 @@ namespace CastleBusters.Core
 
         private bool isWaitingForPhysics = false;
         private float settleTimer = 0f;
-        public float settleDelay = 2.5f;
+        public float settleDelay = 3.2f;
 
         private void Awake()
         {
@@ -51,6 +51,7 @@ namespace CastleBusters.Core
         {
             activePlayer = side;
             actionsTakenThisTurn = 0;
+            if (CameraController.Instance != null) CameraController.Instance.FocusCastle(side);
             OnTurnChanged?.Invoke(activePlayer);
             OnActionCountChanged?.Invoke(actionsTakenThisTurn);
         }

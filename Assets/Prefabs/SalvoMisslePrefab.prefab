@@ -174,4 +174,5 @@ MonoBehaviour:
   explosionRadius: 1.5
   splashDamage: 40
   maxLifetime: 8
+  explosionVFXPrefab: {fileID: 2504214343621411470, guid: 3ed0d324122d7b24eaec75c55c74aafc, type: 3}
   punchThroughChance: 0.25

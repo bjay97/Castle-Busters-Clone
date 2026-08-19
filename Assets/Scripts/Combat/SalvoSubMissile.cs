@@ -60,13 +60,6 @@ namespace CastleBusters.Combat
 
         protected override void OnCollisionEnter2D(Collision2D collision)
         {
-            // Instantly stop physics simulation to prevent any physical bounce response
-            if (rb != null)
-            {
-                rb.linearVelocity = Vector2.zero;
-                rb.angularVelocity = 0f;
-            }
-
             DestructibleBlock block = collision.gameObject.GetComponent<DestructibleBlock>();
             if (block != null && !hasPunchedThrough)
             {
@@ -75,6 +68,8 @@ namespace CastleBusters.Combat
                 {
                     hasPunchedThrough = true;
 
+                    FacadeGridBuilder.CarveAllFacadesAt(collision.GetContact(0).point, explosionRadius);
+                    SpawnExplosionVFX(collision.GetContact(0).point);
                     block.TakeDamage(splashDamage);
 
                     // Convert collider to trigger so it glides straight through without physics collision bounce
@@ -91,6 +86,12 @@ namespace CastleBusters.Combat
                     }
                     return;
                 }
+            }
+
+            if (rb != null)
+            {
+                rb.linearVelocity = Vector2.zero;
+                rb.angularVelocity = 0f;
             }
 
             // Normal impact explosion

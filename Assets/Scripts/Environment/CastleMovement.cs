@@ -49,12 +49,18 @@ namespace CastleBusters.Environment
             }
         }
 
+        private PlayerSide lastActivePlayer = PlayerSide.Player2;
+
         private void HandleTurnChanged(PlayerSide activePlayer)
         {
+            bool isNewRound = (lastActivePlayer != activePlayer && activePlayer == castle?.ownerSide);
+            lastActivePlayer = activePlayer;
+
             isMyTurn = (castle != null && activePlayer == castle.ownerSide);
-            if (isMyTurn)
+
+            if (isNewRound)
             {
-                // Reset fuel at the start of player's turn
+                // Reset fuel ONLY at the start of a new round, NOT between shot 1 and shot 2!
                 ResetFuel();
             }
         }
@@ -70,6 +76,8 @@ namespace CastleBusters.Environment
         public void PressMoveLeft() { uiInputDirection = -1f; }
         public void PressMoveRight() { uiInputDirection = 1f; }
         public void ReleaseMove() { uiInputDirection = 0f; }
+
+        public bool IsActivelyMoving { get; private set; }
 
         private void Update()
         {
@@ -99,7 +107,9 @@ namespace CastleBusters.Environment
 #endif
             }
 
-            if (Mathf.Abs(horizontalInput) > 0.01f && currentFuel > 0f)
+            IsActivelyMoving = (Mathf.Abs(horizontalInput) > 0.01f && currentFuel > 0f);
+
+            if (IsActivelyMoving)
             {
                 MoveCastle(horizontalInput);
             }
