@@ -140,16 +140,34 @@ namespace CastleBusters.Environment
 
         private void RecalculateCastleHealth()
         {
-            float currentHP = 0f;
-            foreach (var block in blocks)
+            FacadeGridBuilder facade = GetComponentInChildren<FacadeGridBuilder>();
+            if (facade == null) facade = GetComponent<FacadeGridBuilder>();
+
+            if (facade != null)
             {
-                if (block != null && !block.IsDestroyed)
+                float fraction = facade.GetFacadeHealthFraction();
+                currentCastleHealth = maxCastleHealth * fraction;
+            }
+            else
+            {
+                float currentHP = 0f;
+                float maxHP = 0f;
+                foreach (var block in blocks)
                 {
-                    currentHP += block.currentHealth;
+                    if (block != null)
+                    {
+                        maxHP += block.maxHealth;
+                        if (!block.IsDestroyed)
+                        {
+                            currentHP += block.currentHealth;
+                        }
+                    }
                 }
+                if (maxHP > 0f) maxCastleHealth = maxHP;
+                currentCastleHealth = currentHP;
             }
 
-            currentCastleHealth = Mathf.Max(0f, currentHP);
+            currentCastleHealth = Mathf.Max(0f, currentCastleHealth);
             OnCastleHealthChanged?.Invoke(currentCastleHealth, maxCastleHealth);
 
             if (IsDestroyed)
