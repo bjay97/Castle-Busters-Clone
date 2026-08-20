@@ -19,10 +19,12 @@ namespace CastleBusters.UI
 
         [Header("Castle Health Bars (Supports Legacy Text or TextMeshPro)")]
         public Image p1CastleHealthFill;
+        public RectTransform p1HealthMaskRect; // Optional RectMask2D / RectTransform container for 9-Sliced Health Bar
         public Text p1CastleHealthText;
         public TextMeshProUGUI p1CastleHealthTextTMP;
 
         public Image p2CastleHealthFill;
+        public RectTransform p2HealthMaskRect; // Optional RectMask2D / RectTransform container for 9-Sliced Health Bar
         public Text p2CastleHealthText;
         public TextMeshProUGUI p2CastleHealthTextTMP;
 
@@ -498,6 +500,10 @@ namespace CastleBusters.UI
             float fill = (max > 0f) ? Mathf.Clamp01(current / max) : 0f;
             int pct = Mathf.CeilToInt(fill * 100f);
             if (p1CastleHealthFill != null) p1CastleHealthFill.fillAmount = fill;
+            if (p1HealthMaskRect != null)
+            {
+                p1HealthMaskRect.anchorMax = new Vector2(fill, p1HealthMaskRect.anchorMax.y);
+            }
             string msg = $"P1 Castle: {pct}%";
             if (p1CastleHealthText != null) p1CastleHealthText.text = msg;
             if (p1CastleHealthTextTMP != null) p1CastleHealthTextTMP.text = msg;
@@ -508,6 +514,10 @@ namespace CastleBusters.UI
             float fill = (max > 0f) ? Mathf.Clamp01(current / max) : 0f;
             int pct = Mathf.CeilToInt(fill * 100f);
             if (p2CastleHealthFill != null) p2CastleHealthFill.fillAmount = fill;
+            if (p2HealthMaskRect != null)
+            {
+                p2HealthMaskRect.anchorMax = new Vector2(fill, p2HealthMaskRect.anchorMax.y);
+            }
             string msg = $"P2 Castle: {pct}%";
             if (p2CastleHealthText != null) p2CastleHealthText.text = msg;
             if (p2CastleHealthTextTMP != null) p2CastleHealthTextTMP.text = msg;
