@@ -31,10 +31,10 @@ namespace CastleBusters.Core
         [Header("Orthographic Zoom Settings")]
         public float castleFocusZoom = 6.0f;
         public float enemyTurnZoom = 10.5f;       // Constant zoomed out view during enemy turn (moving & firing)
-        public float movementZoom = 11.5f;       // Significantly zoomed out wide view while driving castle
-        public float soldierSelectZoom = 5.2f;    // Slightly zoomed in during soldier select
-        public float soldierFocusZoom = 3.8f;     // Smooth close-up pan on active soldier
-        public float followTargetZoom = 8.5f;     // Significantly zoomed out wide view while tracking missiles
+        public float movementZoom = 11.0f;       // Significantly zoomed out wide view while driving castle
+        public float soldierSelectZoom = 10.23f;  // Zoom during soldier select phase
+        public float soldierFocusZoom = 10.23f;   // Matches soldierSelectZoom for smooth panning without jarring zooms
+        public float followTargetZoom = 11.0f;    // Significantly zoomed out wide view while tracking missiles
         public float overviewZoom = 13.0f;
         public float zoomSmoothTime = 0.3f;
 
@@ -61,6 +61,10 @@ namespace CastleBusters.Core
             cam = GetComponent<Camera>();
             if (cam == null) cam = Camera.main;
             if (cam == null) cam = FindFirstObjectByType<Camera>();
+
+            // Auto-override outdated scene values if old small zoom values were saved in Inspector
+            if (soldierSelectZoom < 8.0f) soldierSelectZoom = 10.23f;
+            if (soldierFocusZoom < 8.0f) soldierFocusZoom = 10.23f;
         }
 
         private void OnDestroy()
@@ -120,12 +124,12 @@ namespace CastleBusters.Core
         {
             float safeRatio = Mathf.Clamp01(dragRatio);
 
-            // Dynamically scale orthographic zoom based on pull strength (4.2 close range -> 8.5 far range)
-            soldierFocusZoom = Mathf.Lerp(4.2f, 8.5f, safeRatio);
+            // Dynamically scale orthographic zoom based on pull strength (keeps 10.23 wide view at rest!)
+            soldierFocusZoom = Mathf.Lerp(soldierSelectZoom, 11.5f, safeRatio);
 
-            // Dynamically shift camera X offset toward enemy castle based on pull strength (+2.0 close -> +5.5 far)
-            aimingOffset.x = Mathf.Lerp(2.0f, 5.5f, safeRatio);
-            aimingOffset.y = Mathf.Lerp(0.8f, 1.8f, safeRatio);
+            // Dynamically shift camera X offset toward enemy castle based on pull strength (0.0 rest -> +4.5 far)
+            aimingOffset.x = Mathf.Lerp(0.0f, 4.5f, safeRatio);
+            aimingOffset.y = Mathf.Lerp(1.2f, 1.8f, safeRatio);
         }
 
         public void FocusCastle(PlayerSide side)
@@ -184,8 +188,12 @@ namespace CastleBusters.Core
                         }
                         else
                         {
-                            // Shift camera +3.8 units right towards enemy castle while aiming for trajectory visibility!
-                            targetPosition = currentTarget.position + aimingOffset;
+                            // Shift camera +3.8 units right towards enemy castle ONLY while actively aiming/dragging slingshot!
+                            CastleBusters.Combat.SlingshotLauncher launcher = FindFirstObjectByType<CastleBusters.Combat.SlingshotLauncher>();
+                            bool isDragging = (launcher != null && launcher.IsDragging);
+                            Vector3 activeOffset = isDragging ? aimingOffset : cameraOffset;
+
+                            targetPosition = currentTarget.position + activeOffset;
                             targetZoom = soldierFocusZoom;
                         }
                     }

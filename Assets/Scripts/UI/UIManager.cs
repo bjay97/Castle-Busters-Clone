@@ -57,7 +57,9 @@ namespace CastleBusters.UI
         [Header("Bottom-Center Soldier Select Controls")]
         public GameObject soldierSelectPanel;
         public Button soldier1Btn;
+        public Image soldier1HeadIcon; // Optional UI Image for Soldier 1 Head Icon
         public Button soldier2Btn;
+        public Image soldier2HeadIcon; // Optional UI Image for Soldier 2 Head Icon
 
         [Header("Game Over Overlay")]
         public GameObject gameOverPanel;
@@ -325,16 +327,54 @@ namespace CastleBusters.UI
 
             Soldier chosenSoldier = null;
 
+            // Auto-select first available soldier at start of selection phase
+            if (p1Castle != null && p1Castle.soldiers.Count > 0)
+            {
+                foreach (var s in p1Castle.soldiers)
+                {
+                    if (s != null && !s.IsDead && !s.hasFiredThisTurn)
+                    {
+                        chosenSoldier = s;
+                        break;
+                    }
+                }
+                if (chosenSoldier == null) chosenSoldier = p1Castle.soldiers[0];
+            }
+
+            System.Action<Soldier, bool> applySoldierSelection = (s, focusCamera) =>
+            {
+                if (s == null) return;
+                chosenSoldier = s;
+
+                // Highlight active soldier in world space & dim unselected
+                if (p1Castle != null)
+                {
+                    foreach (var sol in p1Castle.soldiers)
+                    {
+                        if (sol != null) sol.SetSelectionVisualState(sol == chosenSoldier);
+                    }
+                }
+
+                // Update UI button highlight states (highlight active button, dim unselected)
+                UpdateSoldierButtonHighlights(chosenSoldier, p1Castle);
+
+                // Smoothly focus camera on chosen soldier if button was clicked
+                if (focusCamera && CameraController.Instance != null)
+                {
+                    CameraController.Instance.FocusSoldier(chosenSoldier.transform);
+                }
+
+                // Enable aiming on launcher for chosen soldier
+                if (launcher != null)
+                {
+                    launcher.EnableAimingForSoldier(chosenSoldier);
+                }
+            };
+
             if (p1Castle != null && p1Castle.soldiers.Count > 0)
             {
                 // Ensure soldiers are sorted strictly Left-to-Right by X position
                 p1Castle.soldiers.Sort((a, b) => a.transform.position.x.CompareTo(b.transform.position.x));
-
-                // Reset all soldiers to bright visual state at turn start
-                foreach (var s in p1Castle.soldiers)
-                {
-                    if (s != null) s.SetSelectionVisualState(true);
-                }
 
                 if (soldier1Btn != null && p1Castle.soldiers.Count >= 1)
                 {
@@ -345,9 +385,7 @@ namespace CastleBusters.UI
                     if (t1TMP != null) t1TMP.text = $"{s1.soldierName} 1 (Left)";
 
                     soldier1Btn.onClick.RemoveAllListeners();
-                    soldier1Btn.onClick.AddListener(() => {
-                        chosenSoldier = s1;
-                    });
+                    soldier1Btn.onClick.AddListener(() => applySoldierSelection(s1, true));
                 }
 
                 if (soldier2Btn != null && p1Castle.soldiers.Count >= 2)
@@ -359,15 +397,30 @@ namespace CastleBusters.UI
                     if (t2TMP != null) t2TMP.text = $"{s2.soldierName} 2 (Right)";
 
                     soldier2Btn.onClick.RemoveAllListeners();
-                    soldier2Btn.onClick.AddListener(() => {
-                        chosenSoldier = s2;
-                    });
+                    soldier2Btn.onClick.AddListener(() => applySoldierSelection(s2, true));
                 }
             }
 
-            // Wait until user selects a soldier via bottom-center buttons (or instantly if clicked while driving!)
-            while (chosenSoldier == null)
+            // Apply initial selection visuals WITHOUT zooming camera in (keep wide 10.23 SoldierSelection view at turn start!)
+            if (chosenSoldier != null)
             {
+                applySoldierSelection(chosenSoldier, false);
+            }
+
+            if (CameraController.Instance != null)
+            {
+                CameraController.Instance.SetMode(CameraMode.SoldierSelection);
+            }
+
+            // Keep panel active while selecting/switching soldiers, ONLY hide when aiming starts!
+            while (true)
+            {
+                // Hide panels as soon as player starts aiming / pulling slingshot!
+                if (launcher != null && launcher.IsDragging)
+                {
+                    break;
+                }
+
                 // Dynamic driving state during soldier selection!
                 if (p1Movement != null && p1Movement.IsActivelyMoving)
                 {
@@ -391,47 +444,32 @@ namespace CastleBusters.UI
                     movementPanel.SetActive(false);
                 }
 
-                // Fallback auto-select if buttons not wired in scene
-                if (soldierSelectPanel == null || (!soldier1Btn && !soldier2Btn))
-                {
-                    if (p1Castle != null && p1Castle.soldiers.Count > 0)
-                    {
-                        foreach (var s in p1Castle.soldiers)
-                        {
-                            if (s != null && !s.IsDead && !s.hasFiredThisTurn) { chosenSoldier = s; break; }
-                        }
-                    }
-                    if (chosenSoldier == null && p1Castle != null && p1Castle.soldiers.Count > 0) chosenSoldier = p1Castle.soldiers[0];
-                }
                 yield return null;
             }
 
             if (movementPanel != null) movementPanel.SetActive(false);
             if (soldierSelectPanel != null) soldierSelectPanel.SetActive(false);
             if (p1Movement != null) p1Movement.ReleaseMove();
+        }
 
-            // Darken unselected soldier & keep active chosen soldier bright!
-            if (p1Castle != null)
+        private void UpdateSoldierButtonHighlights(Soldier activeSoldier, Castle p1Castle)
+        {
+            if (p1Castle == null || p1Castle.soldiers == null || p1Castle.soldiers.Count == 0) return;
+
+            if (soldier1Btn != null && p1Castle.soldiers.Count >= 1)
             {
-                foreach (var s in p1Castle.soldiers)
-                {
-                    if (s != null)
-                    {
-                        s.SetSelectionVisualState(s == chosenSoldier);
-                    }
-                }
+                bool isSelected = (p1Castle.soldiers[0] == activeSoldier);
+                Image img = soldier1Btn.GetComponent<Image>();
+                if (img != null) img.color = isSelected ? Color.white : new Color(0.7f, 0.7f, 0.7f, 0.65f);
+                soldier1Btn.transform.localScale = isSelected ? Vector3.one * 1.08f : Vector3.one;
             }
 
-            // Smoothly pan camera directly to the clicked active soldier
-            if (CameraController.Instance != null && chosenSoldier != null)
+            if (soldier2Btn != null && p1Castle.soldiers.Count >= 2)
             {
-                CameraController.Instance.FocusSoldier(chosenSoldier.transform);
-            }
-
-            // Enable Trajectory Prediction & Aiming IMMEDIATELY after soldier selected!
-            if (launcher != null && chosenSoldier != null)
-            {
-                launcher.EnableAimingForSoldier(chosenSoldier);
+                bool isSelected = (p1Castle.soldiers[1] == activeSoldier);
+                Image img = soldier2Btn.GetComponent<Image>();
+                if (img != null) img.color = isSelected ? Color.white : new Color(0.7f, 0.7f, 0.7f, 0.65f);
+                soldier2Btn.transform.localScale = isSelected ? Vector3.one * 1.08f : Vector3.one;
             }
         }
 
