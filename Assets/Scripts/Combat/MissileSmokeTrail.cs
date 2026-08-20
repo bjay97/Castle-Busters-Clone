@@ -10,10 +10,11 @@ namespace CastleBusters.Combat
         public Color startColor = new Color(0.85f, 0.85f, 0.85f, 0.7f);
         public Color endColor = new Color(0.9f, 0.9f, 0.9f, 0f);
 
-        [Header("Trail Emission Config")]
+        [Header("Trail Emission Point & Offset")]
+        public Transform emissionPoint; // Drag a child marker Transform (e.g. missile tail/exhaust tip)
+        public Vector3 spawnOffset = Vector3.zero; // Local offset fallback if no marker Transform is assigned
         public float spawnInterval = 0.04f; // Seconds between puff spawns
         public float minDistanceBetweenPuffs = 0.12f; // Minimum distance moved before spawning next puff
-        public Vector3 spawnOffset = Vector3.zero; // Offset relative to missile center
 
         [Header("Puff Scale & Animation")]
         public Vector3 startScale = new Vector3(0.35f, 0.35f, 1f);
@@ -36,9 +37,14 @@ namespace CastleBusters.Combat
             rb = GetComponent<Rigidbody2D>();
         }
 
+        private SpriteRenderer targetSpriteRenderer;
+
         private void Start()
         {
             lastSpawnPosition = transform.position;
+            targetSpriteRenderer = GetComponent<SpriteRenderer>();
+            if (targetSpriteRenderer == null) targetSpriteRenderer = GetComponentInChildren<SpriteRenderer>();
+            if (targetSpriteRenderer == null) targetSpriteRenderer = GetComponentInParent<SpriteRenderer>();
         }
 
         private void Update()
@@ -64,9 +70,31 @@ namespace CastleBusters.Combat
             isEmitting = false;
         }
 
+        public Vector3 GetSpawnPosition()
+        {
+            Vector3 localOffset;
+
+            if (emissionPoint != null)
+            {
+                localOffset = transform.InverseTransformPoint(emissionPoint.position);
+            }
+            else
+            {
+                localOffset = spawnOffset;
+            }
+
+            // If SpriteRenderer is flipped horizontally (e.g. enemy firing leftwards), mirror local X position
+            if (targetSpriteRenderer != null && targetSpriteRenderer.flipX)
+            {
+                localOffset.x = -localOffset.x;
+            }
+
+            return transform.TransformPoint(localOffset);
+        }
+
         private void SpawnSmokePuff()
         {
-            Vector3 spawnPos = transform.TransformPoint(spawnOffset);
+            Vector3 spawnPos = GetSpawnPosition();
 
             GameObject puffObj = new GameObject("SmokePuff");
             puffObj.transform.position = spawnPos;
@@ -83,36 +111,19 @@ namespace CastleBusters.Combat
 
             Vector2 driftDir = useRandomDrift ? Random.insideUnitCircle.normalized * driftSpeed : Vector2.zero;
 
-            StartCoroutine(AnimateSmokePuff(puffObj, sr, driftDir));
+            SmokePuffHandler handler = puffObj.AddComponent<SmokePuffHandler>();
+            handler.startScale = startScale;
+            handler.endScale = endScale;
+            handler.startColor = startColor;
+            handler.endColor = endColor;
+            handler.puffLifetime = puffLifetime;
+            handler.driftDir = driftDir;
         }
 
-        private IEnumerator AnimateSmokePuff(GameObject puffObj, SpriteRenderer sr, Vector2 driftDir)
+        private void OnDrawGizmosSelected()
         {
-            float elapsed = 0f;
-
-            while (elapsed < puffLifetime && puffObj != null)
-            {
-                elapsed += Time.deltaTime;
-                float t = Mathf.Clamp01(elapsed / puffLifetime);
-
-                // Smooth ease-out growth curve
-                float easeT = Mathf.Sin(t * Mathf.PI * 0.5f);
-
-                puffObj.transform.localScale = Vector3.Lerp(startScale, endScale, easeT);
-                puffObj.transform.position += (Vector3)(driftDir * Time.deltaTime);
-
-                if (sr != null)
-                {
-                    sr.color = Color.Lerp(startColor, endColor, t);
-                }
-
-                yield return null;
-            }
-
-            if (puffObj != null)
-            {
-                Destroy(puffObj);
-            }
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawWireSphere(GetSpawnPosition(), 0.12f);
         }
 
         private static Sprite cachedDefaultSmokeSprite;
@@ -148,6 +159,42 @@ namespace CastleBusters.Combat
 
             cachedDefaultSmokeSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
             return cachedDefaultSmokeSprite;
+        }
+    }
+
+    public class SmokePuffHandler : MonoBehaviour
+    {
+        public Vector3 startScale = new Vector3(0.35f, 0.35f, 1f);
+        public Vector3 endScale = new Vector3(1.25f, 1.25f, 1f);
+        public Color startColor = new Color(0.85f, 0.85f, 0.85f, 0.7f);
+        public Color endColor = new Color(0.9f, 0.9f, 0.9f, 0f);
+        public float puffLifetime = 0.75f;
+        public Vector2 driftDir = Vector2.zero;
+
+        private SpriteRenderer sr;
+        private float elapsed = 0f;
+
+        private void Start()
+        {
+            sr = GetComponent<SpriteRenderer>();
+            Destroy(gameObject, Mathf.Max(0.1f, puffLifetime));
+        }
+
+        private void Update()
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / puffLifetime);
+
+            // Smooth ease-out growth curve
+            float easeT = Mathf.Sin(t * Mathf.PI * 0.5f);
+
+            transform.localScale = Vector3.Lerp(startScale, endScale, easeT);
+            transform.position += (Vector3)(driftDir * Time.deltaTime);
+
+            if (sr != null)
+            {
+                sr.color = Color.Lerp(startColor, endColor, t);
+            }
         }
     }
 }
