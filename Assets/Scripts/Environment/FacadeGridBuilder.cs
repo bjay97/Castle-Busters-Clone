@@ -30,6 +30,11 @@ namespace CastleBusters.Environment
         [Range(0f, 1f)]
         public float maxScorchDarkening = 0.30f; // Default subtle soot darkening (30% darker)
 
+        [Header("Debris & Falling Particle Config")]
+        public bool enableDebrisParticles = true;
+        public int debrisCountPerImpact = 8; // Number of debris chips spawned per impact
+        public Sprite[] debrisChipSprites; // Pre-loaded debris chip sprites (auto-generates default if empty)
+
         [Header("Facade Layering & Sorting")]
         public int facadeSortingOrder = 20; // Default 20 (higher than soldier body parts 10-16) so facade covers soldiers
         public string facadeSortingLayerName = "Default";
@@ -312,6 +317,9 @@ namespace CastleBusters.Environment
                 }
             }
 
+            // Pre-sample the original facade artwork color at the hit location before carving cutouts
+            Color originalHitColor = dynamicFacadeTexture.GetPixel(cx, cy);
+
             // Step 1: Check for custom shape assigned to projectile
             UnityEngine.Object selectedMask = customShape;
 
@@ -356,6 +364,82 @@ namespace CastleBusters.Environment
 
             // Perform automatic pixel flood-fill cleanup for any isolated floating texture & physics sections
             CleanupFloatingTextureSections();
+
+            // Spawn color-tinted facade debris chips
+            if (enableDebrisParticles)
+            {
+                SpawnImpactDebris(worldPos, originalHitColor, radius);
+            }
+        }
+
+        private static Sprite cachedDefaultDebrisSprite;
+
+        private static Sprite GetOrCreateDefaultDebrisSprite()
+        {
+            if (cachedDefaultDebrisSprite != null) return cachedDefaultDebrisSprite;
+
+            int width = 16;
+            int height = 16;
+            Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            Color[] cols = new Color[width * height];
+            for (int i = 0; i < cols.Length; i++) cols[i] = Color.white;
+            tex.SetPixels(cols);
+            tex.Apply();
+
+            cachedDefaultDebrisSprite = Sprite.Create(tex, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 16f);
+            return cachedDefaultDebrisSprite;
+        }
+
+        private void SpawnImpactDebris(Vector2 worldPos, Color sampledColor, float radius)
+        {
+            if (sampledColor.a < 0.1f)
+            {
+                sampledColor = new Color(0.65f, 0.55f, 0.45f, 1f); // Fall back to natural wood/stone tan
+            }
+
+            int count = Mathf.Clamp(debrisCountPerImpact, 1, 25);
+
+            // Determine sprite asset to use
+            Sprite chipSprite = null;
+            if (debrisChipSprites != null && debrisChipSprites.Length > 0)
+            {
+                chipSprite = debrisChipSprites[Random.Range(0, debrisChipSprites.Length)];
+            }
+            if (chipSprite == null)
+            {
+                chipSprite = GetOrCreateDefaultDebrisSprite();
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                GameObject pieceObj = new GameObject("FacadeDebris_Piece");
+                pieceObj.transform.position = (Vector3)worldPos + new Vector3(Random.Range(-radius * 0.35f, radius * 0.35f), Random.Range(-radius * 0.35f, radius * 0.35f), 0f);
+
+                SpriteRenderer sr = pieceObj.AddComponent<SpriteRenderer>();
+                sr.sprite = chipSprite;
+                sr.sortingLayerName = !string.IsNullOrEmpty(facadeSortingLayerName) ? facadeSortingLayerName : "Default";
+                sr.sortingOrder = Mathf.Max(100, facadeSortingOrder + 50); // Ensure debris is clearly visible over facade and missiles!
+
+                Rigidbody2D pieceRb = pieceObj.AddComponent<Rigidbody2D>();
+
+                // Slightly vary color shade for natural organic look
+                float shadeFactor = Random.Range(0.80f, 1.20f);
+                Color pieceColor = new Color(
+                    Mathf.Clamp01(sampledColor.r * shadeFactor),
+                    Mathf.Clamp01(sampledColor.g * shadeFactor),
+                    Mathf.Clamp01(sampledColor.b * shadeFactor),
+                    1f
+                );
+
+                Vector2 randomDirection = (Random.insideUnitCircle.normalized + Vector2.up * 0.6f).normalized;
+                Vector2 velocityImpulse = randomDirection * Random.Range(3f, 8f);
+                float spin = Random.Range(-400f, 400f);
+                float scaleVal = Random.Range(0.8f, 1.6f);
+                Vector3 scale = new Vector3(scaleVal, scaleVal, 1f);
+
+                FacadeDebrisPiece pieceComponent = pieceObj.AddComponent<FacadeDebrisPiece>();
+                pieceComponent.Initialize(pieceColor, velocityImpulse, spin, scale);
+            }
         }
 
         private bool GetMaskTextureAndRect(UnityEngine.Object maskObj, out Texture2D maskTex, out Rect maskRect, out string maskName)
