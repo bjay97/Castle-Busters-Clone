@@ -19,12 +19,22 @@ namespace CastleBusters.UI
 
         [Header("Castle Health Bars (Supports Legacy Text or TextMeshPro)")]
         public Image p1CastleHealthFill;
+        public RectTransform p1HealthMaskRect; // Optional RectMask2D / RectTransform container for 9-Sliced Health Bar
+        public Image p1DamageCatchUpFill; // White / Light Red Damage Catch-Up Fill Image
+        public RectTransform p1DamageCatchUpMaskRect; // White / Light Red Damage Catch-Up Mask Rect
         public Text p1CastleHealthText;
         public TextMeshProUGUI p1CastleHealthTextTMP;
 
         public Image p2CastleHealthFill;
+        public RectTransform p2HealthMaskRect; // Optional RectMask2D / RectTransform container for 9-Sliced Health Bar
+        public Image p2DamageCatchUpFill; // White / Light Red Damage Catch-Up Fill Image
+        public RectTransform p2DamageCatchUpMaskRect; // White / Light Red Damage Catch-Up Mask Rect
         public Text p2CastleHealthText;
         public TextMeshProUGUI p2CastleHealthTextTMP;
+
+        [Header("Damage Trail Animation Config")]
+        public float damageTrailPauseDuration = 0.25f; // Seconds before white damage trail begins shrinking
+        public float damageTrailTweenDuration = 0.45f; // Duration of smooth shrink animation
 
         [Header("Castle Movement Fuel Gauge")]
         public Image fuelBarFill;
@@ -493,24 +503,177 @@ namespace CastleBusters.UI
             if (actionCounterTextTMP != null) actionCounterTextTMP.text = msg;
         }
 
+        private float p1MaskFullWidth = 0f;
+        private float p2MaskFullWidth = 0f;
+        private float p1CatchUpMaskFullWidth = 0f;
+        private float p2CatchUpMaskFullWidth = 0f;
+
+        private void InitializeMaskWidths()
+        {
+            if (p1HealthMaskRect != null && p1MaskFullWidth <= 0f)
+            {
+                p1MaskFullWidth = p1HealthMaskRect.rect.width;
+            }
+            if (p1DamageCatchUpMaskRect != null && p1CatchUpMaskFullWidth <= 0f)
+            {
+                p1CatchUpMaskFullWidth = p1DamageCatchUpMaskRect.rect.width;
+            }
+            if (p2HealthMaskRect != null && p2MaskFullWidth <= 0f)
+            {
+                p2MaskFullWidth = p2HealthMaskRect.rect.width;
+            }
+            if (p2DamageCatchUpMaskRect != null && p2CatchUpMaskFullWidth <= 0f)
+            {
+                p2CatchUpMaskFullWidth = p2DamageCatchUpMaskRect.rect.width;
+            }
+        }
+
+        private float p1CurrentCatchUpFill = 1.0f;
+        private float p2CurrentCatchUpFill = 1.0f;
+        private bool p1HealthInitialized = false;
+        private bool p2HealthInitialized = false;
+
+        private Coroutine p1DamageTrailCoroutine;
+        private Coroutine p2DamageTrailCoroutine;
+
+        private void SetP1CatchUpFill(float value)
+        {
+            p1CurrentCatchUpFill = value;
+            if (p1DamageCatchUpFill != null) p1DamageCatchUpFill.fillAmount = value;
+            if (p1DamageCatchUpMaskRect != null)
+            {
+                InitializeMaskWidths();
+                if (p1CatchUpMaskFullWidth > 0f)
+                {
+                    p1DamageCatchUpMaskRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, p1CatchUpMaskFullWidth * value);
+                }
+            }
+        }
+
+        private void SetP2CatchUpFill(float value)
+        {
+            p2CurrentCatchUpFill = value;
+            if (p2DamageCatchUpFill != null) p2DamageCatchUpFill.fillAmount = value;
+            if (p2DamageCatchUpMaskRect != null)
+            {
+                InitializeMaskWidths();
+                if (p2CatchUpMaskFullWidth > 0f)
+                {
+                    p2DamageCatchUpMaskRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, p2CatchUpMaskFullWidth * value);
+                }
+            }
+        }
+
         private void UpdateP1CastleHealth(float current, float max)
         {
             float fill = (max > 0f) ? Mathf.Clamp01(current / max) : 0f;
             int pct = Mathf.CeilToInt(fill * 100f);
+
+            // Update main health bar fill immediately
             if (p1CastleHealthFill != null) p1CastleHealthFill.fillAmount = fill;
+            if (p1HealthMaskRect != null)
+            {
+                InitializeMaskWidths();
+                if (p1MaskFullWidth > 0f)
+                {
+                    p1HealthMaskRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, p1MaskFullWidth * fill);
+                }
+            }
+
+            // Animate white damage catch-up trail
+            if (!p1HealthInitialized)
+            {
+                p1HealthInitialized = true;
+                SetP1CatchUpFill(fill);
+            }
+            else if (p1DamageCatchUpFill != null || p1DamageCatchUpMaskRect != null)
+            {
+                if (p1DamageTrailCoroutine != null) StopCoroutine(p1DamageTrailCoroutine);
+                p1DamageTrailCoroutine = StartCoroutine(AnimateP1DamageTrailRoutine(fill));
+            }
+
             string msg = $"P1 Castle: {pct}%";
             if (p1CastleHealthText != null) p1CastleHealthText.text = msg;
             if (p1CastleHealthTextTMP != null) p1CastleHealthTextTMP.text = msg;
+        }
+
+        private System.Collections.IEnumerator AnimateP1DamageTrailRoutine(float targetFill)
+        {
+            if (targetFill >= p1CurrentCatchUpFill)
+            {
+                SetP1CatchUpFill(targetFill);
+                yield break;
+            }
+
+            float startFill = p1CurrentCatchUpFill;
+            yield return new WaitForSeconds(damageTrailPauseDuration);
+
+            float elapsed = 0f;
+            while (elapsed < damageTrailTweenDuration)
+            {
+                elapsed += Time.deltaTime;
+                float currentFill = Mathf.Lerp(startFill, targetFill, elapsed / damageTrailTweenDuration);
+                SetP1CatchUpFill(currentFill);
+                yield return null;
+            }
+
+            SetP1CatchUpFill(targetFill);
         }
 
         private void UpdateP2CastleHealth(float current, float max)
         {
             float fill = (max > 0f) ? Mathf.Clamp01(current / max) : 0f;
             int pct = Mathf.CeilToInt(fill * 100f);
+
+            // Update main health bar fill immediately
             if (p2CastleHealthFill != null) p2CastleHealthFill.fillAmount = fill;
+            if (p2HealthMaskRect != null)
+            {
+                InitializeMaskWidths();
+                if (p2MaskFullWidth > 0f)
+                {
+                    p2HealthMaskRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, p2MaskFullWidth * fill);
+                }
+            }
+
+            // Animate white damage catch-up trail
+            if (!p2HealthInitialized)
+            {
+                p2HealthInitialized = true;
+                SetP2CatchUpFill(fill);
+            }
+            else if (p2DamageCatchUpFill != null || p2DamageCatchUpMaskRect != null)
+            {
+                if (p2DamageTrailCoroutine != null) StopCoroutine(p2DamageTrailCoroutine);
+                p2DamageTrailCoroutine = StartCoroutine(AnimateP2DamageTrailRoutine(fill));
+            }
+
             string msg = $"P2 Castle: {pct}%";
             if (p2CastleHealthText != null) p2CastleHealthText.text = msg;
             if (p2CastleHealthTextTMP != null) p2CastleHealthTextTMP.text = msg;
+        }
+
+        private System.Collections.IEnumerator AnimateP2DamageTrailRoutine(float targetFill)
+        {
+            if (targetFill >= p2CurrentCatchUpFill)
+            {
+                SetP2CatchUpFill(targetFill);
+                yield break;
+            }
+
+            float startFill = p2CurrentCatchUpFill;
+            yield return new WaitForSeconds(damageTrailPauseDuration);
+
+            float elapsed = 0f;
+            while (elapsed < damageTrailTweenDuration)
+            {
+                elapsed += Time.deltaTime;
+                float currentFill = Mathf.Lerp(startFill, targetFill, elapsed / damageTrailTweenDuration);
+                SetP2CatchUpFill(currentFill);
+                yield return null;
+            }
+
+            SetP2CatchUpFill(targetFill);
         }
 
         private void HandleGameOver(PlayerSide winner)

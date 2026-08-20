@@ -35,6 +35,9 @@ namespace CastleBusters.Environment
         public int debrisCountPerImpact = 8; // Number of debris chips spawned per impact
         public Sprite[] debrisChipSprites; // Pre-loaded debris chip sprites (auto-generates default if empty)
 
+        [Header("Castle Interior Sync")]
+        public SpriteRenderer castleInteriorRenderer; // Optional Castle Interior renderer to auto-align 1:1 with facade visual
+
         [Header("Facade Layering & Sorting")]
         public int facadeSortingOrder = 20; // Default 20 (higher than soldier body parts 10-16) so facade covers soldiers
         public string facadeSortingLayerName = "Default";
@@ -245,6 +248,22 @@ namespace CastleBusters.Environment
             fullObj.transform.localScale = Vector3.one;
             if (!string.IsNullOrEmpty(facadeSortingLayerName)) fullFacadeRenderer.sortingLayerName = facadeSortingLayerName;
             fullFacadeRenderer.sortingOrder = facadeSortingOrder;
+
+            // Auto-align & scale optional Castle Interior SpriteRenderer to match 1:1 with facade visual bounds
+            if (castleInteriorRenderer != null)
+            {
+                castleInteriorRenderer.transform.position = fullObj.transform.position;
+                castleInteriorRenderer.transform.rotation = fullObj.transform.rotation;
+                if (castleInteriorRenderer.sprite != null)
+                {
+                    float intW = castleInteriorRenderer.sprite.bounds.size.x;
+                    float intH = castleInteriorRenderer.sprite.bounds.size.y;
+                    if (intW > 0f && intH > 0f)
+                    {
+                        castleInteriorRenderer.transform.localScale = new Vector3(totalWidth / intW, totalHeight / intH, 1f);
+                    }
+                }
+            }
 
             CalculateInitialSolidPixels();
         }
