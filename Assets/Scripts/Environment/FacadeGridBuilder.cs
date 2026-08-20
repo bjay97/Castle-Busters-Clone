@@ -24,6 +24,12 @@ namespace CastleBusters.Environment
         public bool useRandomMaskRotation = true;
         public bool useRandomMaskFlip = true;
 
+        [Header("Scorch & Smoke Residue Settings")]
+        public bool enableScorchMarks = true;
+        public float scorchRadiusMultiplier = 1.35f; // Scorch ring extends 1.35x beyond crater radius
+        [Range(0f, 1f)]
+        public float maxScorchDarkening = 0.30f; // Default subtle soot darkening (30% darker)
+
         [Header("Facade Layering & Sorting")]
         public int facadeSortingOrder = 20; // Default 20 (higher than soldier body parts 10-16) so facade covers soldiers
         public string facadeSortingLayerName = "Default";
@@ -248,19 +254,19 @@ namespace CastleBusters.Environment
             return Mathf.Clamp01((float)currentCount / initialSolidPixelCount);
         }
 
-        public static void CarveAllFacadesAt(Vector2 worldPos, float radius, UnityEngine.Object customShape = null, bool allowRandomRotation = true)
+        public static void CarveAllFacadesAt(Vector2 worldPos, float radius, UnityEngine.Object customShape = null, bool allowRandomRotation = true, float scorchDarkeningOverride = -1f)
         {
             FacadeGridBuilder[] builders = FindObjectsByType<FacadeGridBuilder>(FindObjectsSortMode.None);
             foreach (var builder in builders)
             {
                 if (builder != null)
                 {
-                    builder.CarveFacadeImpact(worldPos, radius, customShape, allowRandomRotation);
+                    builder.CarveFacadeImpact(worldPos, radius, customShape, allowRandomRotation, scorchDarkeningOverride);
                 }
             }
         }
 
-        public void CarveFacadeImpact(Vector2 worldPos, float radius, UnityEngine.Object customShape = null, bool allowRandomRotation = true)
+        public void CarveFacadeImpact(Vector2 worldPos, float radius, UnityEngine.Object customShape = null, bool allowRandomRotation = true, float scorchDarkeningOverride = -1f)
         {
             if (dynamicFacadeTexture == null)
             {
@@ -325,13 +331,13 @@ namespace CastleBusters.Environment
             // Step 3: Carve with selected mask shape
             if (selectedMask != null)
             {
-                maskCarvedSuccessfully = TryCarveWithMaskObject(selectedMask, cx, cy, avgR, texW, texH, allowRandomRotation);
+                maskCarvedSuccessfully = TryCarveWithMaskObject(selectedMask, cx, cy, avgR, texW, texH, allowRandomRotation, scorchDarkeningOverride);
             }
 
             // Step 4: Fall back to existing procedural noise crater math if no shape was assigned or if mask sampling failed
             if (!maskCarvedSuccessfully)
             {
-                CarveProceduralNoiseCrater(cx, cy, avgR, texW, texH);
+                CarveProceduralNoiseCrater(cx, cy, avgR, texW, texH, scorchDarkeningOverride);
             }
 
             // Damage underlying grid blocks within blast radius
@@ -374,7 +380,7 @@ namespace CastleBusters.Environment
             return false;
         }
 
-        private bool TryCarveWithMaskObject(UnityEngine.Object maskObj, int cx, int cy, float avgR, int texW, int texH, bool allowRandomRotation = true)
+        private bool TryCarveWithMaskObject(UnityEngine.Object maskObj, int cx, int cy, float avgR, int texW, int texH, bool allowRandomRotation = true, float scorchDarkeningOverride = -1f)
         {
             if (!GetMaskTextureAndRect(maskObj, out Texture2D maskTex, out Rect maskRect, out string maskName))
             {
@@ -392,16 +398,21 @@ namespace CastleBusters.Environment
                 return false;
             }
 
+            float effectiveDarkening = (scorchDarkeningOverride >= 0f) ? Mathf.Clamp01(scorchDarkeningOverride) : maxScorchDarkening;
+
             float rot = (useRandomMaskRotation && allowRandomRotation) ? Random.Range(0f, Mathf.PI * 2f) : 0f;
             float cosR = Mathf.Cos(rot);
             float sinR = Mathf.Sin(rot);
             float flipX = (useRandomMaskFlip && Random.value > 0.5f) ? -1f : 1f;
             float flipY = (useRandomMaskFlip && Random.value > 0.5f) ? -1f : 1f;
 
-            int minX = Mathf.Clamp(Mathf.FloorToInt(cx - avgR * 1.5f), 0, texW - 1);
-            int maxX = Mathf.Clamp(Mathf.CeilToInt(cx + avgR * 1.5f), 0, texW - 1);
-            int minY = Mathf.Clamp(Mathf.FloorToInt(cy - avgR * 1.5f), 0, texH - 1);
-            int maxY = Mathf.Clamp(Mathf.CeilToInt(cy + avgR * 1.5f), 0, texH - 1);
+            // Expand bounding box if scorch marks are enabled to cover outer soot ring
+            float scorchR = enableScorchMarks ? avgR * Mathf.Max(1.05f, scorchRadiusMultiplier) : avgR;
+
+            int minX = Mathf.Clamp(Mathf.FloorToInt(cx - scorchR * 1.5f), 0, texW - 1);
+            int maxX = Mathf.Clamp(Mathf.CeilToInt(cx + scorchR * 1.5f), 0, texW - 1);
+            int minY = Mathf.Clamp(Mathf.FloorToInt(cy - scorchR * 1.5f), 0, texH - 1);
+            int maxY = Mathf.Clamp(Mathf.CeilToInt(cy + scorchR * 1.5f), 0, texH - 1);
 
             bool modified = false;
 
@@ -412,11 +423,46 @@ namespace CastleBusters.Environment
                     float dx = (x - cx);
                     float dy = (y - cy);
 
-                    // Apply rotation and flip transform to find normalized UV relative to crater center [-1, 1]
+                    Color targetCol = dynamicFacadeTexture.GetPixel(x, y);
+                    if (targetCol.a <= 0f) continue;
+
+                    // Pass 1: Outer Scorch Ring (Darken original RGB colors using shape-matched mask contour)
+                    if (enableScorchMarks && scorchR > avgR)
+                    {
+                        float rdxScorch = (dx * cosR - dy * sinR) / scorchR * flipX;
+                        float rdyScorch = (dx * sinR + dy * cosR) / scorchR * flipY;
+
+                        float scorchU = (rdxScorch + 1f) * 0.5f;
+                        float scorchV = (rdyScorch + 1f) * 0.5f;
+
+                        if (scorchU >= 0f && scorchU <= 1f && scorchV >= 0f && scorchV <= 1f)
+                        {
+                            int smx = Mathf.Clamp(Mathf.FloorToInt(maskRect.x + scorchU * maskRect.width), (int)maskRect.xMin, (int)maskRect.xMax - 1);
+                            int smy = Mathf.Clamp(Mathf.FloorToInt(maskRect.y + scorchV * maskRect.height), (int)maskRect.yMin, (int)maskRect.yMax - 1);
+
+                            Color sCol = maskTex.GetPixel(smx, smy);
+                            float sAlpha = sCol.a;
+                            if (sAlpha <= 0.01f && (sCol.r + sCol.g + sCol.b) > 1.5f) sAlpha = (sCol.r + sCol.g + sCol.b) / 3f;
+
+                            if (sAlpha > 0.05f)
+                            {
+                                float burnFactor = sAlpha * effectiveDarkening;
+                                float darkMult = Mathf.Clamp01(1f - burnFactor);
+
+                                targetCol.r *= darkMult;
+                                targetCol.g *= darkMult;
+                                targetCol.b *= darkMult;
+
+                                dynamicFacadeTexture.SetPixel(x, y, targetCol);
+                                modified = true;
+                            }
+                        }
+                    }
+
+                    // Pass 2: Inner Core Cutout (Carve alpha = 0 for blast hole)
                     float rdx = (dx * cosR - dy * sinR) / avgR * flipX;
                     float rdy = (dx * sinR + dy * cosR) / avgR * flipY;
 
-                    // Map from [-1, 1] to mask UV [0, 1]
                     float maskU = (rdx + 1f) * 0.5f;
                     float maskV = (rdy + 1f) * 0.5f;
 
@@ -427,31 +473,21 @@ namespace CastleBusters.Environment
 
                         Color maskCol = maskTex.GetPixel(mx, my);
                         float maskAlpha = maskCol.a;
-
-                        // Support white-on-black mask or standard alpha cutout mask
-                        if (maskAlpha <= 0.01f && (maskCol.r + maskCol.g + maskCol.b) > 1.5f)
-                        {
-                            maskAlpha = (maskCol.r + maskCol.g + maskCol.b) / 3f;
-                        }
+                        if (maskAlpha <= 0.01f && (maskCol.r + maskCol.g + maskCol.b) > 1.5f) maskAlpha = (maskCol.r + maskCol.g + maskCol.b) / 3f;
 
                         if (maskAlpha > 0.05f)
                         {
-                            Color targetCol = dynamicFacadeTexture.GetPixel(x, y);
-                            if (targetCol.a > 0f)
+                            if (maskAlpha >= 0.25f)
                             {
-                                // Crisp cutout threshold to prevent leftover semi-transparent edge floaters
-                                if (maskAlpha >= 0.25f)
-                                {
-                                    targetCol.a = 0f;
-                                }
-                                else
-                                {
-                                    float cutoutFactor = (maskAlpha - 0.05f) / 0.20f;
-                                    targetCol.a = Mathf.Min(targetCol.a, 1f - cutoutFactor);
-                                }
-                                dynamicFacadeTexture.SetPixel(x, y, targetCol);
-                                modified = true;
+                                targetCol.a = 0f;
                             }
+                            else
+                            {
+                                float cutoutFactor = (maskAlpha - 0.05f) / 0.20f;
+                                targetCol.a = Mathf.Min(targetCol.a, 1f - cutoutFactor);
+                            }
+                            dynamicFacadeTexture.SetPixel(x, y, targetCol);
+                            modified = true;
                         }
                     }
                 }
@@ -465,7 +501,7 @@ namespace CastleBusters.Environment
             return true;
         }
 
-        private void CarveProceduralNoiseCrater(int cx, int cy, float avgR, int texW, int texH)
+        private void CarveProceduralNoiseCrater(int cx, int cy, float avgR, int texW, int texH, float scorchDarkeningOverride = -1f)
         {
             float seed = Random.Range(0f, 1000f);
             float aspectX = Random.Range(0.85f, 1.25f);
@@ -474,10 +510,13 @@ namespace CastleBusters.Environment
             float cosR = Mathf.Cos(rot);
             float sinR = Mathf.Sin(rot);
 
-            int minX = Mathf.Clamp(Mathf.FloorToInt(cx - avgR * 1.5f), 0, texW - 1);
-            int maxX = Mathf.Clamp(Mathf.CeilToInt(cx + avgR * 1.5f), 0, texW - 1);
-            int minY = Mathf.Clamp(Mathf.FloorToInt(cy - avgR * 1.5f), 0, texH - 1);
-            int maxY = Mathf.Clamp(Mathf.CeilToInt(cy + avgR * 1.5f), 0, texH - 1);
+            float effectiveDarkening = (scorchDarkeningOverride >= 0f) ? Mathf.Clamp01(scorchDarkeningOverride) : maxScorchDarkening;
+            float scorchR = enableScorchMarks ? avgR * Mathf.Max(1.05f, scorchRadiusMultiplier) : avgR;
+
+            int minX = Mathf.Clamp(Mathf.FloorToInt(cx - scorchR * 1.5f), 0, texW - 1);
+            int maxX = Mathf.Clamp(Mathf.CeilToInt(cx + scorchR * 1.5f), 0, texW - 1);
+            int minY = Mathf.Clamp(Mathf.FloorToInt(cy - scorchR * 1.5f), 0, texH - 1);
+            int maxY = Mathf.Clamp(Mathf.CeilToInt(cy + scorchR * 1.5f), 0, texH - 1);
 
             bool modified = false;
             for (int y = minY; y <= maxY; y++)
@@ -498,24 +537,40 @@ namespace CastleBusters.Environment
                                 + Mathf.Sin(angle * 12f + seed * 3f) * 0.06f;
 
                     float craterRadius = avgR * (1.0f + noise);
+                    float outerScorchRadius = scorchR * (1.0f + noise);
 
+                    Color col = dynamicFacadeTexture.GetPixel(x, y);
+                    if (col.a <= 0f) continue;
+
+                    // Scorch darkening in outer ring
+                    if (enableScorchMarks && dist > craterRadius && dist <= outerScorchRadius)
+                    {
+                        float distFactor = 1f - ((dist - craterRadius) / Mathf.Max(0.01f, outerScorchRadius - craterRadius));
+                        float burnFactor = Mathf.Clamp01(distFactor) * effectiveDarkening;
+                        float darkMult = Mathf.Clamp01(1f - burnFactor);
+
+                        col.r *= darkMult;
+                        col.g *= darkMult;
+                        col.b *= darkMult;
+
+                        dynamicFacadeTexture.SetPixel(x, y, col);
+                        modified = true;
+                    }
+
+                    // Cutout in inner blast core
                     if (dist <= craterRadius)
                     {
-                        Color col = dynamicFacadeTexture.GetPixel(x, y);
-                        if (col.a > 0f)
+                        if (dist <= craterRadius - 1.5f)
                         {
-                            if (dist <= craterRadius - 1.5f)
-                            {
-                                col.a = 0f;
-                            }
-                            else
-                            {
-                                float edgeFactor = (dist - (craterRadius - 1.5f)) / 1.5f;
-                                col.a = Mathf.Min(col.a, Mathf.Clamp01(edgeFactor));
-                            }
-                            dynamicFacadeTexture.SetPixel(x, y, col);
-                            modified = true;
+                            col.a = 0f;
                         }
+                        else
+                        {
+                            float edgeFactor = (dist - (craterRadius - 1.5f)) / 1.5f;
+                            col.a = Mathf.Min(col.a, Mathf.Clamp01(edgeFactor));
+                        }
+                        dynamicFacadeTexture.SetPixel(x, y, col);
+                        modified = true;
                     }
                 }
             }
