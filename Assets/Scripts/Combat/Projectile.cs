@@ -21,6 +21,17 @@ namespace CastleBusters.Combat
         public PlayerSide ownerSide = PlayerSide.Player1; // Firing player side
         public bool allowFriendlyFire = false; // Disabled by default to prevent self/friendly damage and facade carving
 
+        [Header("Custom Crater Shape Override (Drag ANY Sprite or PNG Texture2D here)")]
+        public UnityEngine.Object customCraterShape; // Custom crater shape for this projectile
+        public bool useRandomRotationForShape = true; // Randomly rotate shape for visual variety
+        [Range(-1f, 1f)]
+        public float customScorchDarkening = -1f; // -1 to use Facade default; 0 to 1 to override soot darkness
+
+        [Header("Crater Sizing & Damage Coupling Mode")]
+        public bool useMaskNativeSize = false; // True: Radius & damage derived from Crater Mask shape asset dimensions; False: Uses explicit explosionRadius
+        public float craterScaleMultiplier = 1.0f; // Scale multiplier applied to mask asset size when useMaskNativeSize is true
+        public float damagePerCraterAreaUnit = 40f; // Damage factor per surface area unit when useMaskNativeSize is true
+
         protected Rigidbody2D rb;
         private bool hasExploded = false;
 
@@ -111,9 +122,36 @@ namespace CastleBusters.Combat
         [Header("Explosion VFX")]
         public GameObject explosionVFXPrefab;
 
+        public void GetEffectiveExplosionRadiusAndDamage(out float effectiveRadius, out float effectiveDamage)
+        {
+            effectiveRadius = explosionRadius;
+            effectiveDamage = splashDamage;
+
+            if (useMaskNativeSize && customCraterShape != null)
+            {
+                float maskWorldWidth = 1.5f; // Fallback width
+
+                if (customCraterShape is Sprite spr && spr != null)
+                {
+                    maskWorldWidth = spr.bounds.size.x * craterScaleMultiplier;
+                }
+                else if (customCraterShape is Texture2D tex && tex != null)
+                {
+                    // Default 100 pixels per unit if raw texture
+                    maskWorldWidth = (tex.width / 100f) * craterScaleMultiplier;
+                }
+
+                effectiveRadius = Mathf.Max(0.1f, maskWorldWidth * 0.5f);
+                float craterArea = Mathf.PI * effectiveRadius * effectiveRadius;
+                effectiveDamage = Mathf.Max(10f, craterArea * damagePerCraterAreaUnit);
+            }
+        }
+
         protected virtual void Explode()
         {
             hasExploded = true;
+
+            GetEffectiveExplosionRadiusAndDamage(out float radius, out float damage);
 
             // Stop missile smoke trail emission
             MissileSmokeTrail trail = GetComponent<MissileSmokeTrail>();
@@ -134,11 +172,11 @@ namespace CastleBusters.Combat
                     {
                         continue; // Skip carving friendly castle facade!
                     }
-                    builder.CarveFacadeImpact(transform.position, explosionRadius);
+                    builder.CarveFacadeImpact(transform.position, radius, customCraterShape, useRandomRotationForShape, customScorchDarkening);
                 }
             }
 
-            Collider2D[] hitColliders = Physics2D.OverlapCircleAll(transform.position, explosionRadius);
+            Collider2D[] hitColliders = Physics2D.OverlapCircleAll(transform.position, radius);
             foreach (var hit in hitColliders)
             {
                 if (hit.gameObject == gameObject) continue;
@@ -149,7 +187,7 @@ namespace CastleBusters.Combat
                     Castle blockCastle = block.GetComponentInParent<Castle>();
                     if (blockCastle == null || allowFriendlyFire || blockCastle.ownerSide != ownerSide)
                     {
-                        block.TakeDamage(splashDamage);
+                        block.TakeDamage(damage);
                     }
                 }
 
@@ -158,7 +196,7 @@ namespace CastleBusters.Combat
                 {
                     if (allowFriendlyFire || soldier.ownerSide != ownerSide)
                     {
-                        soldier.TakeDamage(splashDamage * 0.5f);
+                        soldier.TakeDamage(damage * 0.5f);
                     }
                 }
 
