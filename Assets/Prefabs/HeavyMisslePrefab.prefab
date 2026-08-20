@@ -214,6 +214,9 @@ MonoBehaviour:
   customCraterShape: {fileID: 2800000, guid: e0600256e92cca24592184079ed5a242, type: 3}
   useRandomRotationForShape: 1
   customScorchDarkening: -1
+  useMaskNativeSize: 0
+  craterScaleMultiplier: 1
+  damagePerCraterAreaUnit: 40
   rotateTowardsVelocity: 1
   flipSpriteXOnLeftFlight: 1
   explosionVFXPrefab: {fileID: 2433282508537954060, guid: 3ef3ae421f71c5c4e97fe12dc2fc6312, type: 3}
