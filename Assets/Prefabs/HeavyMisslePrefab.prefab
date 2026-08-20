@@ -211,8 +211,9 @@ MonoBehaviour:
   speedMultiplier: 0.45
   ownerSide: 0
   allowFriendlyFire: 0
-  customCraterShape: {fileID: 2800000, guid: a86613f65d625964c989808bc8d88bdd, type: 3}
+  customCraterShape: {fileID: 2800000, guid: e0600256e92cca24592184079ed5a242, type: 3}
   useRandomRotationForShape: 1
+  customScorchDarkening: -1
   rotateTowardsVelocity: 1
   flipSpriteXOnLeftFlight: 1
   explosionVFXPrefab: {fileID: 2433282508537954060, guid: 3ef3ae421f71c5c4e97fe12dc2fc6312, type: 3}
