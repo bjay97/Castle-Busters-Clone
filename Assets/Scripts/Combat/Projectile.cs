@@ -115,6 +115,11 @@ namespace CastleBusters.Combat
         {
             hasExploded = true;
 
+            // Stop missile smoke trail emission
+            MissileSmokeTrail trail = GetComponent<MissileSmokeTrail>();
+            if (trail == null) trail = GetComponentInChildren<MissileSmokeTrail>();
+            if (trail != null) trail.StopEmitting();
+
             // Spawn explosion VFX at impact position
             SpawnExplosionVFX(transform.position);
 
