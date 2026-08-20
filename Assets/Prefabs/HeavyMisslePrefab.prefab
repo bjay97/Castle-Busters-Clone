@@ -1,5 +1,36 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &96334780310583236
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4088059477601845663}
+  m_Layer: 0
+  m_Name: SmokeEmitter
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4088059477601845663
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 96334780310583236}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1.464, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8388121195387276101}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1668717909590357474
 GameObject:
   m_ObjectHideFlags: 0
@@ -14,6 +45,7 @@ GameObject:
   - component: {fileID: 7737076175982125762}
   - component: {fileID: 7736241411928258387}
   - component: {fileID: 6470033383325516046}
+  - component: {fileID: 4347440916357546741}
   m_Layer: 0
   m_Name: HeavyMisslePrefab
   m_TagString: Untagged
@@ -33,7 +65,8 @@ Transform:
   m_LocalPosition: {x: 0.29525, y: -0.4563, z: 0}
   m_LocalScale: {x: 0.5, y: 0.5, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 4088059477601845663}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!212 &2546670247625195189
@@ -176,6 +209,10 @@ MonoBehaviour:
   splashDamage: 50
   maxLifetime: 8
   speedMultiplier: 0.45
+  ownerSide: 0
+  allowFriendlyFire: 0
+  rotateTowardsVelocity: 1
+  flipSpriteXOnLeftFlight: 1
   explosionVFXPrefab: {fileID: 2433282508537954060, guid: 3ef3ae421f71c5c4e97fe12dc2fc6312, type: 3}
 --- !u!114 &6470033383325516046
 MonoBehaviour:
@@ -190,3 +227,29 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CastleBusters.Environment.SpriteAssigner
   imageTexture: {fileID: 2800000, guid: bfe184ae4c4982144821fa09256970ad, type: 3}
+--- !u!114 &4347440916357546741
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1668717909590357474}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7448e7daf121c544ca0d8c62a0b1ffeb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CastleBusters.Combat.MissileSmokeTrail
+  smokeSprite: {fileID: 21300000, guid: 945b53349835eaa4da5611751b9571f2, type: 3}
+  startColor: {r: 0.85, g: 0.85, b: 0.85, a: 0.7}
+  endColor: {r: 0.9, g: 0.9, b: 0.9, a: 0}
+  emissionPoint: {fileID: 4088059477601845663}
+  spawnOffset: {x: 0, y: 0, z: 0}
+  spawnInterval: 0.04
+  minDistanceBetweenPuffs: 0.12
+  startScale: {x: 0.35, y: 0.35, z: 1}
+  endScale: {x: 1.25, y: 1.25, z: 1}
+  puffLifetime: 0.75
+  useRandomRotation: 1
+  useRandomDrift: 1
+  driftSpeed: 0.2
+  sortingOrder: 45
