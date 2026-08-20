@@ -124,12 +124,12 @@ namespace CastleBusters.Core
         {
             float safeRatio = Mathf.Clamp01(dragRatio);
 
-            // Dynamically scale orthographic zoom based on pull strength (4.2 close range -> 8.5 far range)
-            soldierFocusZoom = Mathf.Lerp(4.2f, 8.5f, safeRatio);
+            // Dynamically scale orthographic zoom based on pull strength (keeps 10.23 wide view at rest!)
+            soldierFocusZoom = Mathf.Lerp(soldierSelectZoom, 11.5f, safeRatio);
 
-            // Dynamically shift camera X offset toward enemy castle based on pull strength (+2.0 close -> +5.5 far)
-            aimingOffset.x = Mathf.Lerp(2.0f, 5.5f, safeRatio);
-            aimingOffset.y = Mathf.Lerp(0.8f, 1.8f, safeRatio);
+            // Dynamically shift camera X offset toward enemy castle based on pull strength (0.0 rest -> +4.5 far)
+            aimingOffset.x = Mathf.Lerp(0.0f, 4.5f, safeRatio);
+            aimingOffset.y = Mathf.Lerp(1.2f, 1.8f, safeRatio);
         }
 
         public void FocusCastle(PlayerSide side)
