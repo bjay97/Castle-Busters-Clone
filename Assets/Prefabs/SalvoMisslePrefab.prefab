@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 4010350320913454288}
   - component: {fileID: 4091277546122204154}
   - component: {fileID: 9004181816300935708}
+  - component: {fileID: 567192632918521096}
   m_Layer: 0
   m_Name: SalvoMisslePrefab
   m_TagString: Untagged
@@ -33,7 +34,8 @@ Transform:
   m_LocalPosition: {x: -2.64473, y: -0.03095, z: 0}
   m_LocalScale: {x: 0.25, y: 0.25, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 878955064430122277}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!212 &4961666733161795549
@@ -195,3 +197,60 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CastleBusters.Environment.SpriteAssigner
   imageTexture: {fileID: 2800000, guid: 2fbd137e3dd5eb046aba75b70ff91626, type: 3}
+--- !u!114 &567192632918521096
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4282850942253740428}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7448e7daf121c544ca0d8c62a0b1ffeb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CastleBusters.Combat.MissileSmokeTrail
+  smokeSprite: {fileID: 21300000, guid: 945b53349835eaa4da5611751b9571f2, type: 3}
+  startColor: {r: 0.85, g: 0.85, b: 0.85, a: 0.7}
+  endColor: {r: 0.9, g: 0.9, b: 0.9, a: 0}
+  emissionPoint: {fileID: 878955064430122277}
+  spawnOffset: {x: 0, y: 0, z: 0}
+  spawnInterval: 0.04
+  minDistanceBetweenPuffs: 0.12
+  startScale: {x: 0.35, y: 0.35, z: 1}
+  endScale: {x: 1.25, y: 1.25, z: 1}
+  puffLifetime: 0.75
+  useRandomRotation: 1
+  useRandomDrift: 1
+  driftSpeed: 0.2
+  sortingOrder: 45
+--- !u!1 &6168378142084437164
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 878955064430122277}
+  m_Layer: 0
+  m_Name: SmokeEmitter
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &878955064430122277
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6168378142084437164}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.95, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2490734941109991840}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
