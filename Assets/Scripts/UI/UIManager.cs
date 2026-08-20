@@ -495,6 +495,21 @@ namespace CastleBusters.UI
             if (actionCounterTextTMP != null) actionCounterTextTMP.text = msg;
         }
 
+        private float p1MaskFullWidth = 0f;
+        private float p2MaskFullWidth = 0f;
+
+        private void InitializeMaskWidths()
+        {
+            if (p1HealthMaskRect != null && p1MaskFullWidth <= 0f)
+            {
+                p1MaskFullWidth = p1HealthMaskRect.rect.width;
+            }
+            if (p2HealthMaskRect != null && p2MaskFullWidth <= 0f)
+            {
+                p2MaskFullWidth = p2HealthMaskRect.rect.width;
+            }
+        }
+
         private void UpdateP1CastleHealth(float current, float max)
         {
             float fill = (max > 0f) ? Mathf.Clamp01(current / max) : 0f;
@@ -502,7 +517,11 @@ namespace CastleBusters.UI
             if (p1CastleHealthFill != null) p1CastleHealthFill.fillAmount = fill;
             if (p1HealthMaskRect != null)
             {
-                p1HealthMaskRect.anchorMax = new Vector2(fill, p1HealthMaskRect.anchorMax.y);
+                InitializeMaskWidths();
+                if (p1MaskFullWidth > 0f)
+                {
+                    p1HealthMaskRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, p1MaskFullWidth * fill);
+                }
             }
             string msg = $"P1 Castle: {pct}%";
             if (p1CastleHealthText != null) p1CastleHealthText.text = msg;
@@ -516,7 +535,11 @@ namespace CastleBusters.UI
             if (p2CastleHealthFill != null) p2CastleHealthFill.fillAmount = fill;
             if (p2HealthMaskRect != null)
             {
-                p2HealthMaskRect.anchorMax = new Vector2(fill, p2HealthMaskRect.anchorMax.y);
+                InitializeMaskWidths();
+                if (p2MaskFullWidth > 0f)
+                {
+                    p2HealthMaskRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, p2MaskFullWidth * fill);
+                }
             }
             string msg = $"P2 Castle: {pct}%";
             if (p2CastleHealthText != null) p2CastleHealthText.text = msg;
