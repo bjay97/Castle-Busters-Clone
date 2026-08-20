@@ -21,6 +21,10 @@ namespace CastleBusters.Combat
         public PlayerSide ownerSide = PlayerSide.Player1; // Firing player side
         public bool allowFriendlyFire = false; // Disabled by default to prevent self/friendly damage and facade carving
 
+        [Header("Custom Crater Shape Override (Drag ANY Sprite or PNG Texture2D here)")]
+        public UnityEngine.Object customCraterShape; // Custom crater shape for this projectile
+        public bool useRandomRotationForShape = true; // Randomly rotate shape for visual variety
+
         protected Rigidbody2D rb;
         private bool hasExploded = false;
 
@@ -134,7 +138,7 @@ namespace CastleBusters.Combat
                     {
                         continue; // Skip carving friendly castle facade!
                     }
-                    builder.CarveFacadeImpact(transform.position, explosionRadius);
+                    builder.CarveFacadeImpact(transform.position, explosionRadius, customCraterShape, useRandomRotationForShape);
                 }
             }
 

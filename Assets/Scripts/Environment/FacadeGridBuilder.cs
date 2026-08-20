@@ -19,6 +19,11 @@ namespace CastleBusters.Environment
         public float blockHealth = 25f;
         public bool generateOnStart = true;
 
+        [Header("Crater Mask Settings (Facade Mask Pool Fallback)")]
+        public UnityEngine.Object[] craterMaskPool; // Drag Sprite or PNG Texture2D crater masks here
+        public bool useRandomMaskRotation = true;
+        public bool useRandomMaskFlip = true;
+
         [Header("Facade Layering & Sorting")]
         public int facadeSortingOrder = 20; // Default 20 (higher than soldier body parts 10-16) so facade covers soldiers
         public string facadeSortingLayerName = "Default";
@@ -243,19 +248,19 @@ namespace CastleBusters.Environment
             return Mathf.Clamp01((float)currentCount / initialSolidPixelCount);
         }
 
-        public static void CarveAllFacadesAt(Vector2 worldPos, float radius)
+        public static void CarveAllFacadesAt(Vector2 worldPos, float radius, UnityEngine.Object customShape = null, bool allowRandomRotation = true)
         {
             FacadeGridBuilder[] builders = FindObjectsByType<FacadeGridBuilder>(FindObjectsSortMode.None);
             foreach (var builder in builders)
             {
                 if (builder != null)
                 {
-                    builder.CarveFacadeImpact(worldPos, radius);
+                    builder.CarveFacadeImpact(worldPos, radius, customShape, allowRandomRotation);
                 }
             }
         }
 
-        public void CarveFacadeImpact(Vector2 worldPos, float radius)
+        public void CarveFacadeImpact(Vector2 worldPos, float radius, UnityEngine.Object customShape = null, bool allowRandomRotation = true)
         {
             if (dynamicFacadeTexture == null)
             {
@@ -301,6 +306,167 @@ namespace CastleBusters.Environment
                 }
             }
 
+            // Step 1: Check for custom shape assigned to projectile
+            UnityEngine.Object selectedMask = customShape;
+
+            // Step 2: Fall back to facade's craterMaskPool if projectile has no custom shape
+            if (selectedMask == null && craterMaskPool != null && craterMaskPool.Length > 0)
+            {
+                System.Collections.Generic.List<UnityEngine.Object> pool = new System.Collections.Generic.List<UnityEngine.Object>();
+                foreach (var obj in craterMaskPool) if (obj != null) pool.Add(obj);
+                if (pool.Count > 0)
+                {
+                    selectedMask = pool[Random.Range(0, pool.Count)];
+                }
+            }
+
+            bool maskCarvedSuccessfully = false;
+
+            // Step 3: Carve with selected mask shape
+            if (selectedMask != null)
+            {
+                maskCarvedSuccessfully = TryCarveWithMaskObject(selectedMask, cx, cy, avgR, texW, texH, allowRandomRotation);
+            }
+
+            // Step 4: Fall back to existing procedural noise crater math if no shape was assigned or if mask sampling failed
+            if (!maskCarvedSuccessfully)
+            {
+                CarveProceduralNoiseCrater(cx, cy, avgR, texW, texH);
+            }
+
+            // Damage underlying grid blocks within blast radius
+            DestructibleBlock[] blocks = GetComponentsInChildren<DestructibleBlock>();
+            foreach (var b in blocks)
+            {
+                if (b != null && !b.IsDestroyed)
+                {
+                    float distToBlock = Vector2.Distance(worldPos, b.transform.position);
+                    if (distToBlock <= radius * 1.2f)
+                    {
+                        b.TakeDamage(blockHealth * 2f); // ensure destruction inside crater
+                    }
+                }
+            }
+
+            // Perform automatic pixel flood-fill cleanup for any isolated floating texture & physics sections
+            CleanupFloatingTextureSections();
+        }
+
+        private bool GetMaskTextureAndRect(UnityEngine.Object maskObj, out Texture2D maskTex, out Rect maskRect, out string maskName)
+        {
+            maskTex = null;
+            maskRect = Rect.zero;
+            maskName = maskObj != null ? maskObj.name : "Null";
+
+            if (maskObj is Sprite sprite && sprite != null)
+            {
+                maskTex = sprite.texture;
+                maskRect = sprite.textureRect;
+                return maskTex != null;
+            }
+            else if (maskObj is Texture2D tex && tex != null)
+            {
+                maskTex = tex;
+                maskRect = new Rect(0, 0, tex.width, tex.height);
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool TryCarveWithMaskObject(UnityEngine.Object maskObj, int cx, int cy, float avgR, int texW, int texH, bool allowRandomRotation = true)
+        {
+            if (!GetMaskTextureAndRect(maskObj, out Texture2D maskTex, out Rect maskRect, out string maskName))
+            {
+                return false;
+            }
+
+            // Test if mask texture is readable
+            try
+            {
+                maskTex.GetPixel(Mathf.FloorToInt(maskRect.x), Mathf.FloorToInt(maskRect.y));
+            }
+            catch (System.Exception)
+            {
+                Debug.LogWarning($"[FacadeGridBuilder] Crater mask '{maskName}' texture is not readable! Ensure Read/Write is enabled in Texture Import Settings. Falling back to procedural noise.");
+                return false;
+            }
+
+            float rot = (useRandomMaskRotation && allowRandomRotation) ? Random.Range(0f, Mathf.PI * 2f) : 0f;
+            float cosR = Mathf.Cos(rot);
+            float sinR = Mathf.Sin(rot);
+            float flipX = (useRandomMaskFlip && Random.value > 0.5f) ? -1f : 1f;
+            float flipY = (useRandomMaskFlip && Random.value > 0.5f) ? -1f : 1f;
+
+            int minX = Mathf.Clamp(Mathf.FloorToInt(cx - avgR * 1.5f), 0, texW - 1);
+            int maxX = Mathf.Clamp(Mathf.CeilToInt(cx + avgR * 1.5f), 0, texW - 1);
+            int minY = Mathf.Clamp(Mathf.FloorToInt(cy - avgR * 1.5f), 0, texH - 1);
+            int maxY = Mathf.Clamp(Mathf.CeilToInt(cy + avgR * 1.5f), 0, texH - 1);
+
+            bool modified = false;
+
+            for (int y = minY; y <= maxY; y++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    float dx = (x - cx);
+                    float dy = (y - cy);
+
+                    // Apply rotation and flip transform to find normalized UV relative to crater center [-1, 1]
+                    float rdx = (dx * cosR - dy * sinR) / avgR * flipX;
+                    float rdy = (dx * sinR + dy * cosR) / avgR * flipY;
+
+                    // Map from [-1, 1] to mask UV [0, 1]
+                    float maskU = (rdx + 1f) * 0.5f;
+                    float maskV = (rdy + 1f) * 0.5f;
+
+                    if (maskU >= 0f && maskU <= 1f && maskV >= 0f && maskV <= 1f)
+                    {
+                        int mx = Mathf.Clamp(Mathf.FloorToInt(maskRect.x + maskU * maskRect.width), (int)maskRect.xMin, (int)maskRect.xMax - 1);
+                        int my = Mathf.Clamp(Mathf.FloorToInt(maskRect.y + maskV * maskRect.height), (int)maskRect.yMin, (int)maskRect.yMax - 1);
+
+                        Color maskCol = maskTex.GetPixel(mx, my);
+                        float maskAlpha = maskCol.a;
+
+                        // Support white-on-black mask or standard alpha cutout mask
+                        if (maskAlpha <= 0.01f && (maskCol.r + maskCol.g + maskCol.b) > 1.5f)
+                        {
+                            maskAlpha = (maskCol.r + maskCol.g + maskCol.b) / 3f;
+                        }
+
+                        if (maskAlpha > 0.05f)
+                        {
+                            Color targetCol = dynamicFacadeTexture.GetPixel(x, y);
+                            if (targetCol.a > 0f)
+                            {
+                                // Crisp cutout threshold to prevent leftover semi-transparent edge floaters
+                                if (maskAlpha >= 0.25f)
+                                {
+                                    targetCol.a = 0f;
+                                }
+                                else
+                                {
+                                    float cutoutFactor = (maskAlpha - 0.05f) / 0.20f;
+                                    targetCol.a = Mathf.Min(targetCol.a, 1f - cutoutFactor);
+                                }
+                                dynamicFacadeTexture.SetPixel(x, y, targetCol);
+                                modified = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (modified)
+            {
+                dynamicFacadeTexture.Apply();
+            }
+
+            return true;
+        }
+
+        private void CarveProceduralNoiseCrater(int cx, int cy, float avgR, int texW, int texH)
+        {
             float seed = Random.Range(0f, 1000f);
             float aspectX = Random.Range(0.85f, 1.25f);
             float aspectY = Random.Range(0.85f, 1.25f);
@@ -358,23 +524,6 @@ namespace CastleBusters.Environment
             {
                 dynamicFacadeTexture.Apply();
             }
-
-            // Damage underlying grid blocks within blast radius
-            DestructibleBlock[] blocks = GetComponentsInChildren<DestructibleBlock>();
-            foreach (var b in blocks)
-            {
-                if (b != null && !b.IsDestroyed)
-                {
-                    float distToBlock = Vector2.Distance(worldPos, b.transform.position);
-                    if (distToBlock <= radius * 1.2f)
-                    {
-                        b.TakeDamage(blockHealth * 2f); // ensure destruction inside crater
-                    }
-                }
-            }
-
-            // Perform automatic pixel flood-fill cleanup for any isolated floating texture & physics sections
-            CleanupFloatingTextureSections();
         }
 
         public void CleanupFloatingTextureSections()
