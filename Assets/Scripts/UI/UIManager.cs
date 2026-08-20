@@ -57,7 +57,9 @@ namespace CastleBusters.UI
         [Header("Bottom-Center Soldier Select Controls")]
         public GameObject soldierSelectPanel;
         public Button soldier1Btn;
+        public Image soldier1HeadIcon; // Optional UI Image for Soldier 1 Head Icon
         public Button soldier2Btn;
+        public Image soldier2HeadIcon; // Optional UI Image for Soldier 2 Head Icon
 
         [Header("Game Over Overlay")]
         public GameObject gameOverPanel;
