@@ -43,6 +43,23 @@ namespace CastleBusters.Environment
         private SpriteRenderer fullFacadeRenderer;
         private Sprite fullFacadeSprite;
 
+        private bool isTextureDirty = false;
+        private bool needsCleanup = false;
+
+        private void LateUpdate()
+        {
+            if (isTextureDirty && dynamicFacadeTexture != null)
+            {
+                if (needsCleanup)
+                {
+                    CleanupFloatingTextureSectionsInternal();
+                    needsCleanup = false;
+                }
+                dynamicFacadeTexture.Apply();
+                isTextureDirty = false;
+            }
+        }
+
         private void Awake()
         {
             if (Application.isPlaying)
@@ -412,6 +429,8 @@ namespace CastleBusters.Environment
 
             for (int i = 0; i < count; i++)
             {
+                if (FacadeDebrisPiece.activeDebrisCount >= FacadeDebrisPiece.maxActiveDebrisCount) break;
+
                 GameObject pieceObj = new GameObject("FacadeDebris_Piece");
                 pieceObj.transform.position = (Vector3)worldPos + new Vector3(Random.Range(-radius * 0.35f, radius * 0.35f), Random.Range(-radius * 0.35f, radius * 0.35f), 0f);
 
@@ -579,7 +598,7 @@ namespace CastleBusters.Environment
 
             if (modified)
             {
-                dynamicFacadeTexture.Apply();
+                isTextureDirty = true;
             }
 
             return true;
@@ -661,11 +680,17 @@ namespace CastleBusters.Environment
 
             if (modified)
             {
-                dynamicFacadeTexture.Apply();
+                isTextureDirty = true;
             }
         }
 
         public void CleanupFloatingTextureSections()
+        {
+            needsCleanup = true;
+            isTextureDirty = true;
+        }
+
+        private void CleanupFloatingTextureSectionsInternal()
         {
             if (dynamicFacadeTexture == null) return;
 
@@ -845,10 +870,7 @@ namespace CastleBusters.Environment
 
             if (clearedAny)
             {
-                dynamicFacadeTexture.Apply();
-
-                Castle parentCastle = GetComponentInParent<Castle>();
-                if (parentCastle != null) parentCastle.RefreshCastleHealth();
+                isTextureDirty = true;
             }
         }
 

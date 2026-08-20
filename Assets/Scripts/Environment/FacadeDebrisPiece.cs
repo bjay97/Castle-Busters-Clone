@@ -13,6 +13,19 @@ namespace CastleBusters.Environment
         private Vector3 initialScale;
         private Color initialColor;
 
+        public static int activeDebrisCount = 0;
+        public static readonly int maxActiveDebrisCount = 20;
+
+        private void OnEnable()
+        {
+            activeDebrisCount++;
+        }
+
+        private void OnDestroy()
+        {
+            activeDebrisCount = Mathf.Max(0, activeDebrisCount - 1);
+        }
+
         private void Awake()
         {
             sr = GetComponent<SpriteRenderer>();
