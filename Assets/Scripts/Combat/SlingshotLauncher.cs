@@ -15,6 +15,7 @@ namespace CastleBusters.Combat
         [Header("Active Aiming State")]
         public Soldier activeSoldier;
         public bool isAimingAllowed = false;
+        public bool IsDragging => isDragging;
 
         private bool isDragging = false;
         private Vector2 dragStartPosition;
@@ -184,6 +185,14 @@ namespace CastleBusters.Combat
             return Input.GetMouseButtonUp(0);
         }
 
+        private bool IsPointerOverUI()
+        {
+            if (UnityEngine.EventSystems.EventSystem.current == null) return false;
+            if (UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) return true;
+            if (Input.touchCount > 0 && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId)) return true;
+            return false;
+        }
+
         private void Update()
         {
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
@@ -202,6 +211,12 @@ namespace CastleBusters.Combat
 
             if (!isDragging && IsPointerPressedThisFrame())
             {
+                // Ignore clicks over UI elements (e.g. Soldier Select Buttons, Movement Buttons)
+                if (IsPointerOverUI())
+                {
+                    return;
+                }
+
                 float distToSoldier = Vector2.Distance(mouseWorldPos, activeSoldier.transform.position);
                 if (distToSoldier < 4f)
                 {
