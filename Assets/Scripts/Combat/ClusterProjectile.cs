@@ -49,6 +49,12 @@ namespace CastleBusters.Combat
                     Vector2 dir = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
 
                     GameObject sub = Instantiate(subProjectilePrefab, transform.position, Quaternion.identity);
+                    Projectile subProj = sub.GetComponent<Projectile>();
+                    if (subProj != null)
+                    {
+                        subProj.ownerSide = this.ownerSide;
+                    }
+
                     Rigidbody2D subRb = sub.GetComponent<Rigidbody2D>();
                     if (subRb != null)
                     {

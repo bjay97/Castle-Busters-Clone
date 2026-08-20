@@ -212,6 +212,35 @@ namespace CastleBusters.Environment
             fullObj.transform.localScale = Vector3.one;
             if (!string.IsNullOrEmpty(facadeSortingLayerName)) fullFacadeRenderer.sortingLayerName = facadeSortingLayerName;
             fullFacadeRenderer.sortingOrder = facadeSortingOrder;
+
+            CalculateInitialSolidPixels();
+        }
+
+        private int initialSolidPixelCount = 0;
+
+        private void CalculateInitialSolidPixels()
+        {
+            if (dynamicFacadeTexture == null) return;
+            Color32[] pixels = dynamicFacadeTexture.GetPixels32();
+            int count = 0;
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                if (pixels[i].a > 15) count++;
+            }
+            initialSolidPixelCount = Mathf.Max(1, count);
+        }
+
+        public float GetFacadeHealthFraction()
+        {
+            if (dynamicFacadeTexture == null || initialSolidPixelCount <= 0) return 1f;
+
+            Color32[] pixels = dynamicFacadeTexture.GetPixels32();
+            int currentCount = 0;
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                if (pixels[i].a > 15) currentCount++;
+            }
+            return Mathf.Clamp01((float)currentCount / initialSolidPixelCount);
         }
 
         public static void CarveAllFacadesAt(Vector2 worldPos, float radius)

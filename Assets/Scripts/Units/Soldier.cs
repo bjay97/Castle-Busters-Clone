@@ -94,6 +94,27 @@ namespace CastleBusters.Units
             {
                 hasFiredThisTurn = false;
             }
+            SetSelectionVisualState(true);
+        }
+
+        public void SetSelectionVisualState(bool isSelected)
+        {
+            Color targetColor = isSelected ? Color.white : new Color(0.42f, 0.42f, 0.46f, 1.0f);
+            SpriteRenderer[] renderers = GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var sr in renderers)
+            {
+                if (sr != null)
+                {
+                    if (sr.gameObject.name.ToLower().Contains("shadow"))
+                    {
+                        sr.color = isSelected ? new Color(0f, 0f, 0f, 0.4f) : new Color(0f, 0f, 0f, 0.18f);
+                    }
+                    else
+                    {
+                        sr.color = targetColor;
+                    }
+                }
+            }
         }
 
         public void TakeDamage(float damage)
