@@ -539,22 +539,61 @@ namespace CastleBusters.Environment
             }
         }
 
-        private static Sprite cachedDefaultDebrisSprite;
+        private static Sprite[] cachedDebrisChipPool;
 
-        private static Sprite GetOrCreateDefaultDebrisSprite()
+        private static Sprite[] GetOrCreateDefaultDebrisChipPool()
         {
-            if (cachedDefaultDebrisSprite != null) return cachedDefaultDebrisSprite;
+            if (cachedDebrisChipPool != null && cachedDebrisChipPool.Length > 0) return cachedDebrisChipPool;
 
-            int width = 16;
-            int height = 16;
-            Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
-            Color[] cols = new Color[width * height];
-            for (int i = 0; i < cols.Length; i++) cols[i] = Color.white;
-            tex.SetPixels(cols);
-            tex.Apply();
+            int size = 8;
+            cachedDebrisChipPool = new Sprite[5];
 
-            cachedDefaultDebrisSprite = Sprite.Create(tex, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 16f);
-            return cachedDefaultDebrisSprite;
+            // Shape 0: Sharp Triangle Splinter
+            Texture2D tex0 = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            Color[] c0 = new Color[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                    c0[y * size + x] = (x + y <= size - 1) ? Color.white : Color.clear;
+            tex0.SetPixels(c0); tex0.Apply();
+            cachedDebrisChipPool[0] = Sprite.Create(tex0, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 16f);
+
+            // Shape 1: Sharp Diamond Shard
+            Texture2D tex1 = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            Color[] c1 = new Color[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                    c1[y * size + x] = (Mathf.Abs(x - 3.5f) + Mathf.Abs(y - 3.5f) <= 3.5f) ? Color.white : Color.clear;
+            tex1.SetPixels(c1); tex1.Apply();
+            cachedDebrisChipPool[1] = Sprite.Create(tex1, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 16f);
+
+            // Shape 2: Thin Vertical Wood Needle
+            Texture2D tex2 = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            Color[] c2 = new Color[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                    c2[y * size + x] = (x >= 3 && x <= 4 && y >= 1 && y <= 6) ? Color.white : Color.clear;
+            tex2.SetPixels(c2); tex2.Apply();
+            cachedDebrisChipPool[2] = Sprite.Create(tex2, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 16f);
+
+            // Shape 3: Asymmetric Stone Chunk
+            Texture2D tex3 = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            Color[] c3 = new Color[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                    c3[y * size + x] = (x >= 1 && x <= 6 && y >= 2 && y <= 5 && !(x == 6 && y == 5)) ? Color.white : Color.clear;
+            tex3.SetPixels(c3); tex3.Apply();
+            cachedDebrisChipPool[3] = Sprite.Create(tex3, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 16f);
+
+            // Shape 4: Tiny Pebble Dot
+            Texture2D tex4 = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            Color[] c4 = new Color[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                    c4[y * size + x] = (Vector2.Distance(new Vector2(x, y), new Vector2(3.5f, 3.5f)) <= 2.2f) ? Color.white : Color.clear;
+            tex4.SetPixels(c4); tex4.Apply();
+            cachedDebrisChipPool[4] = Sprite.Create(tex4, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 16f);
+
+            return cachedDebrisChipPool;
         }
 
         private void SpawnImpactDebris(Vector2 worldPos, Color sampledColor, float radius)
@@ -566,20 +605,14 @@ namespace CastleBusters.Environment
 
             int count = Mathf.Clamp(debrisCountPerImpact, 1, 25);
 
-            // Determine sprite asset to use
-            Sprite chipSprite = null;
-            if (debrisChipSprites != null && debrisChipSprites.Length > 0)
-            {
-                chipSprite = debrisChipSprites[Random.Range(0, debrisChipSprites.Length)];
-            }
-            if (chipSprite == null)
-            {
-                chipSprite = GetOrCreateDefaultDebrisSprite();
-            }
+            // Determine sprite asset pool to use
+            Sprite[] chipPool = (debrisChipSprites != null && debrisChipSprites.Length > 0) ? debrisChipSprites : GetOrCreateDefaultDebrisChipPool();
 
             for (int i = 0; i < count; i++)
             {
                 if (FacadeDebrisPiece.activeDebrisCount >= FacadeDebrisPiece.maxActiveDebrisCount) break;
+
+                Sprite chipSprite = chipPool[Random.Range(0, chipPool.Length)];
 
                 GameObject pieceObj = new GameObject("FacadeDebris_Piece");
                 pieceObj.transform.position = (Vector3)worldPos + new Vector3(Random.Range(-radius * 0.35f, radius * 0.35f), Random.Range(-radius * 0.35f, radius * 0.35f), 0f);
@@ -587,7 +620,7 @@ namespace CastleBusters.Environment
                 SpriteRenderer sr = pieceObj.AddComponent<SpriteRenderer>();
                 sr.sprite = chipSprite;
                 sr.sortingLayerName = !string.IsNullOrEmpty(facadeSortingLayerName) ? facadeSortingLayerName : "Default";
-                sr.sortingOrder = Mathf.Max(100, facadeSortingOrder + 50); // Ensure debris is clearly visible over facade and missiles!
+                sr.sortingOrder = 150; // Render above explosion VFX (100) and facade (20)
 
                 Rigidbody2D pieceRb = pieceObj.AddComponent<Rigidbody2D>();
 
@@ -600,10 +633,10 @@ namespace CastleBusters.Environment
                     1f
                 );
 
-                Vector2 randomDirection = (Random.insideUnitCircle.normalized + Vector2.up * 0.6f).normalized;
-                Vector2 velocityImpulse = randomDirection * Random.Range(3f, 8f);
+                Vector2 randomDirection = (Random.insideUnitCircle.normalized + Vector2.up * 0.7f).normalized;
+                Vector2 velocityImpulse = randomDirection * Random.Range(3.5f, 8.5f);
                 float spin = Random.Range(-400f, 400f);
-                float scaleVal = Random.Range(0.8f, 1.6f);
+                float scaleVal = (Random.value < 0.30f) ? Random.Range(1.50f, 2.40f) : Random.Range(0.60f, 1.35f);
                 Vector3 scale = new Vector3(scaleVal, scaleVal, 1f);
 
                 FacadeDebrisPiece pieceComponent = pieceObj.AddComponent<FacadeDebrisPiece>();
