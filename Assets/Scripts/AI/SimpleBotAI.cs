@@ -205,16 +205,6 @@ namespace CastleBusters.AI
                 }
             }
 
-            // If only 1 AI soldier is alive, reset flag so they can take the 2nd shot of the turn
-            foreach (var s in allSoldiers)
-            {
-                if (s != null && s.ownerSide == aiSide && !s.IsDead)
-                {
-                    s.hasFiredThisTurn = false;
-                    return s;
-                }
-            }
-
             return null;
         }
     }

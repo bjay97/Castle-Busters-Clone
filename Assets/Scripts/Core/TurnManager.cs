@@ -1,5 +1,7 @@
 using System;
 using UnityEngine;
+using CastleBusters.Environment;
+using CastleBusters.Units;
 
 namespace CastleBusters.Core
 {
@@ -23,18 +25,30 @@ namespace CastleBusters.Core
     {
         public static TurnManager Instance { get; private set; }
 
+        [Header("Round & Timer Config")]
+        public int currentRound = 1;
+        public int maxRounds = 12;
+        public float turnDuration = 30f;
+        public float currentTurnTimeRemaining = 30f;
+        public bool isTimerRunning = false;
+
         [Header("Turn State")]
         public PlayerSide activePlayer = PlayerSide.Player1;
         public int actionsTakenThisTurn = 0;
-        public const int MaxActionsPerTurn = 2;
+        public int maxActionsThisTurn = 1;
+        public const int MaxActionsPerTurn = 2; // Kept for legacy compatibility if referenced
 
         public event Action<PlayerSide> OnTurnChanged;
         public event Action<int> OnActionCountChanged;
+        public event Action<int, int> OnRoundChanged; // (currentRound, maxRounds)
+        public event Action<float, float> OnTurnTimerUpdated; // (remainingSeconds, totalSeconds)
         public event Action OnTurnSettled;
 
         private bool isWaitingForPhysics = false;
         private float settleTimer = 0f;
         public float settleDelay = 3.2f;
+
+        private bool isFirstTurnOfGame = true;
 
         private void Awake()
         {
@@ -49,15 +63,85 @@ namespace CastleBusters.Core
 
         public void StartTurn(PlayerSide side)
         {
+            if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
+
+            // Increment round when turn cycles back to Player 1 (after initial game start)
+            if (side == PlayerSide.Player1)
+            {
+                if (!isFirstTurnOfGame)
+                {
+                    currentRound++;
+                }
+                isFirstTurnOfGame = false;
+
+                if (currentRound > maxRounds)
+                {
+                    if (GameManager.Instance != null)
+                    {
+                        GameManager.Instance.TriggerRoundLimitLoss();
+                    }
+                    return;
+                }
+            }
+
             activePlayer = side;
             actionsTakenThisTurn = 0;
+            maxActionsThisTurn = GetAliveSoldierCountForSide(side);
+
+            ResetSoldierFiredFlags(side);
+
+            currentTurnTimeRemaining = turnDuration;
+            isTimerRunning = true;
+
             if (CameraController.Instance != null) CameraController.Instance.FocusCastle(side);
             OnTurnChanged?.Invoke(activePlayer);
             OnActionCountChanged?.Invoke(actionsTakenThisTurn);
+            OnRoundChanged?.Invoke(currentRound, maxRounds);
+            OnTurnTimerUpdated?.Invoke(currentTurnTimeRemaining, turnDuration);
+        }
+
+        public int GetAliveSoldierCountForSide(PlayerSide side)
+        {
+            Castle castle = (side == PlayerSide.Player1) 
+                ? GameManager.Instance?.player1Castle 
+                : GameManager.Instance?.player2Castle;
+
+            int count = 0;
+            if (castle != null && castle.soldiers != null)
+            {
+                foreach (var s in castle.soldiers)
+                {
+                    if (s != null && !s.IsDead) count++;
+                }
+            }
+
+            if (count == 0)
+            {
+                Soldier[] soldiers = FindObjectsByType<Soldier>(FindObjectsSortMode.None);
+                foreach (var s in soldiers)
+                {
+                    if (s != null && s.ownerSide == side && !s.IsDead) count++;
+                }
+            }
+
+            return Mathf.Max(1, count);
+        }
+
+        public void ResetSoldierFiredFlags(PlayerSide side)
+        {
+            Soldier[] soldiers = FindObjectsByType<Soldier>(FindObjectsSortMode.None);
+            foreach (var s in soldiers)
+            {
+                if (s != null && s.ownerSide == side)
+                {
+                    s.hasFiredThisTurn = false;
+                }
+            }
         }
 
         public void RegisterActionFired()
         {
+            isTimerRunning = false;
             actionsTakenThisTurn++;
             OnActionCountChanged?.Invoke(actionsTakenThisTurn);
             StartWaitingForPhysicsSettle();
@@ -65,20 +149,41 @@ namespace CastleBusters.Core
 
         public void StartWaitingForPhysicsSettle()
         {
+            isTimerRunning = false;
             isWaitingForPhysics = true;
             settleTimer = settleDelay;
         }
 
         private void Update()
         {
-            if (!isWaitingForPhysics) return;
+            if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
 
-            settleTimer -= Time.deltaTime;
-            if (settleTimer <= 0f)
+            // Handle turn countdown timer
+            if (isTimerRunning && !isWaitingForPhysics)
             {
-                isWaitingForPhysics = false;
-                OnTurnSettled?.Invoke();
-                EvaluateTurnProgress();
+                currentTurnTimeRemaining -= Time.deltaTime;
+                if (currentTurnTimeRemaining < 0f) currentTurnTimeRemaining = 0f;
+                OnTurnTimerUpdated?.Invoke(currentTurnTimeRemaining, turnDuration);
+
+                if (currentTurnTimeRemaining <= 0f)
+                {
+                    // Time expired! Forfeit turn/attack
+                    isTimerRunning = false;
+                    Debug.Log($"Turn timer expired for {activePlayer}! Forfeiting turn.");
+                    RegisterActionFired();
+                }
+            }
+
+            // Handle physics settling countdown
+            if (isWaitingForPhysics)
+            {
+                settleTimer -= Time.deltaTime;
+                if (settleTimer <= 0f)
+                {
+                    isWaitingForPhysics = false;
+                    OnTurnSettled?.Invoke();
+                    EvaluateTurnProgress();
+                }
             }
         }
 
@@ -86,7 +191,7 @@ namespace CastleBusters.Core
         {
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
 
-            if (actionsTakenThisTurn >= MaxActionsPerTurn)
+            if (actionsTakenThisTurn >= maxActionsThisTurn)
             {
                 // Switch turn to opposing player
                 PlayerSide nextPlayer = (activePlayer == PlayerSide.Player1) ? PlayerSide.Player2 : PlayerSide.Player1;
@@ -94,8 +199,31 @@ namespace CastleBusters.Core
             }
             else
             {
-                // Player still has actions remaining in current turn
-                OnTurnChanged?.Invoke(activePlayer);
+                // Check if any unfired alive soldier remains
+                bool hasUnfiredSoldier = false;
+                Castle activeCastle = (activePlayer == PlayerSide.Player1) ? GameManager.Instance?.player1Castle : GameManager.Instance?.player2Castle;
+                if (activeCastle != null)
+                {
+                    foreach (var s in activeCastle.soldiers)
+                    {
+                        if (s != null && !s.IsDead && !s.hasFiredThisTurn)
+                        {
+                            hasUnfiredSoldier = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!hasUnfiredSoldier)
+                {
+                    PlayerSide nextPlayer = (activePlayer == PlayerSide.Player1) ? PlayerSide.Player2 : PlayerSide.Player1;
+                    StartTurn(nextPlayer);
+                }
+                else
+                {
+                    // Player still has actions remaining in current turn
+                    OnTurnChanged?.Invoke(activePlayer);
+                }
             }
         }
     }

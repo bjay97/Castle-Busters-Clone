@@ -17,6 +17,12 @@ namespace CastleBusters.UI
         public Text actionCounterText;
         public TextMeshProUGUI actionCounterTextTMP;
 
+        [Header("Round & Timer HUD (Supports Legacy Text or TextMeshPro)")]
+        public Text roundText;
+        public TextMeshProUGUI roundTextTMP;
+        public Text timerText;
+        public TextMeshProUGUI timerTextTMP;
+
         [Header("Castle Health Bars (Supports Legacy Text or TextMeshPro)")]
         public Image p1CastleHealthFill;
         public RectTransform p1HealthMaskRect; // Optional RectMask2D / RectTransform container for 9-Sliced Health Bar
@@ -99,10 +105,14 @@ namespace CastleBusters.UI
             {
                 TurnManager.Instance.OnTurnChanged += UpdateTurnUI;
                 TurnManager.Instance.OnActionCountChanged += UpdateActionUI;
+                TurnManager.Instance.OnRoundChanged += UpdateRoundUI;
+                TurnManager.Instance.OnTurnTimerUpdated += UpdateTimerUI;
 
-                // Explicitly refresh turn and action HUD on Start
+                // Explicitly refresh turn, action, round, and timer HUD on Start
                 UpdateTurnUI(TurnManager.Instance.activePlayer);
                 UpdateActionUI(TurnManager.Instance.actionsTakenThisTurn);
+                UpdateRoundUI(TurnManager.Instance.currentRound, TurnManager.Instance.maxRounds);
+                UpdateTimerUI(TurnManager.Instance.currentTurnTimeRemaining, TurnManager.Instance.turnDuration);
             }
 
             if (GameManager.Instance != null)
@@ -123,6 +133,97 @@ namespace CastleBusters.UI
             // Auto bind listeners if castles registered after Start
             BindCastleHealthListeners();
             UpdateFPSCounter();
+            EnsureRoundAndTimerUI();
+        }
+
+        private void EnsureRoundAndTimerUI()
+        {
+            if (roundText != null || roundTextTMP != null || timerText != null || timerTextTMP != null) return;
+
+            Canvas canvas = FindFirstObjectByType<Canvas>();
+            if (canvas == null) return;
+
+            GameObject hudObj = new GameObject("RoundAndTimerHUD");
+            hudObj.transform.SetParent(canvas.transform, false);
+
+            RectTransform rect = hudObj.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 1f); // Top Center
+            rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, -15f);
+            rect.sizeDelta = new Vector2(360f, 45f);
+
+            // Round Text
+            GameObject roundObj = new GameObject("RoundText");
+            roundObj.transform.SetParent(hudObj.transform, false);
+            RectTransform roundRect = roundObj.AddComponent<RectTransform>();
+            roundRect.anchorMin = new Vector2(0f, 0f);
+            roundRect.anchorMax = new Vector2(0.48f, 1f);
+            roundRect.pivot = new Vector2(0.5f, 0.5f);
+            roundRect.anchoredPosition = Vector2.zero;
+
+            roundText = roundObj.AddComponent<Text>();
+            roundText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (roundText.font == null) roundText.font = Font.CreateDynamicFontFromOSFont("Arial", 20);
+            roundText.fontSize = 20;
+            roundText.fontStyle = FontStyle.Bold;
+            roundText.color = Color.white;
+            roundText.alignment = TextAnchor.MiddleCenter;
+            roundText.raycastTarget = false;
+
+            Outline rOutline = roundObj.AddComponent<Outline>();
+            rOutline.effectColor = Color.black;
+            rOutline.effectDistance = new Vector2(1.5f, -1.5f);
+
+            // Timer Text
+            GameObject timerObj = new GameObject("TimerText");
+            timerObj.transform.SetParent(hudObj.transform, false);
+            RectTransform timerRect = timerObj.AddComponent<RectTransform>();
+            timerRect.anchorMin = new Vector2(0.52f, 0f);
+            timerRect.anchorMax = new Vector2(1f, 1f);
+            timerRect.pivot = new Vector2(0.5f, 0.5f);
+            timerRect.anchoredPosition = Vector2.zero;
+
+            timerText = timerObj.AddComponent<Text>();
+            timerText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (timerText.font == null) timerText.font = Font.CreateDynamicFontFromOSFont("Arial", 20);
+            timerText.fontSize = 20;
+            timerText.fontStyle = FontStyle.Bold;
+            timerText.color = new Color(1.0f, 0.9f, 0.2f);
+            timerText.alignment = TextAnchor.MiddleCenter;
+            timerText.raycastTarget = false;
+
+            Outline tOutline = timerObj.AddComponent<Outline>();
+            tOutline.effectColor = Color.black;
+            tOutline.effectDistance = new Vector2(1.5f, -1.5f);
+        }
+
+        private void UpdateRoundUI(int current, int max)
+        {
+            EnsureRoundAndTimerUI();
+            string msg = $"Round {current}/{max}";
+            if (roundText != null) roundText.text = msg;
+            if (roundTextTMP != null) roundTextTMP.text = msg;
+        }
+
+        private void UpdateTimerUI(float remaining, float total)
+        {
+            EnsureRoundAndTimerUI();
+            int sec = Mathf.CeilToInt(remaining);
+            string msg = $"Time: {sec}s";
+
+            Color textColor = (remaining <= 5f) ? new Color(1.0f, 0.25f, 0.25f) : new Color(1.0f, 0.9f, 0.2f);
+
+            if (timerText != null)
+            {
+                timerText.text = msg;
+                timerText.color = textColor;
+            }
+            if (timerTextTMP != null)
+            {
+                timerTextTMP.text = msg;
+                timerTextTMP.color = textColor;
+            }
         }
 
         private void EnsureFPSCounterUI()
@@ -274,9 +375,8 @@ namespace CastleBusters.UI
 
         private void UpdateTurnUI(PlayerSide side)
         {
-            string msg = (side == PlayerSide.Player1) ? "Player 1's Turn (Your Turn)" : "Player 2's Turn (AI Bot Thinking...)";
-            if (turnText != null) turnText.text = msg;
-            if (turnTextTMP != null) turnTextTMP.text = msg;
+            if (turnText != null) turnText.gameObject.SetActive(false);
+            if (turnTextTMP != null) turnTextTMP.gameObject.SetActive(false);
 
             if (turnSequenceCoroutine != null) StopCoroutine(turnSequenceCoroutine);
 
@@ -384,8 +484,14 @@ namespace CastleBusters.UI
                     TextMeshProUGUI t1TMP = soldier1Btn.GetComponentInChildren<TextMeshProUGUI>();
                     if (t1TMP != null) t1TMP.text = $"{s1.soldierName} 1 (Left)";
 
+                    bool is1Available = (s1 != null && !s1.IsDead && !s1.hasFiredThisTurn);
+                    soldier1Btn.interactable = is1Available;
+
                     soldier1Btn.onClick.RemoveAllListeners();
-                    soldier1Btn.onClick.AddListener(() => applySoldierSelection(s1, true));
+                    if (is1Available)
+                    {
+                        soldier1Btn.onClick.AddListener(() => applySoldierSelection(s1, true));
+                    }
                 }
 
                 if (soldier2Btn != null && p1Castle.soldiers.Count >= 2)
@@ -396,8 +502,14 @@ namespace CastleBusters.UI
                     TextMeshProUGUI t2TMP = soldier2Btn.GetComponentInChildren<TextMeshProUGUI>();
                     if (t2TMP != null) t2TMP.text = $"{s2.soldierName} 2 (Right)";
 
+                    bool is2Available = (s2 != null && !s2.IsDead && !s2.hasFiredThisTurn);
+                    soldier2Btn.interactable = is2Available;
+
                     soldier2Btn.onClick.RemoveAllListeners();
-                    soldier2Btn.onClick.AddListener(() => applySoldierSelection(s2, true));
+                    if (is2Available)
+                    {
+                        soldier2Btn.onClick.AddListener(() => applySoldierSelection(s2, true));
+                    }
                 }
             }
 
@@ -456,20 +568,35 @@ namespace CastleBusters.UI
         {
             if (p1Castle == null || p1Castle.soldiers == null || p1Castle.soldiers.Count == 0) return;
 
-            if (soldier1Btn != null && p1Castle.soldiers.Count >= 1)
+            Button[] buttons = new Button[] { soldier1Btn, soldier2Btn };
+            for (int i = 0; i < buttons.Length && i < p1Castle.soldiers.Count; i++)
             {
-                bool isSelected = (p1Castle.soldiers[0] == activeSoldier);
-                Image img = soldier1Btn.GetComponent<Image>();
-                if (img != null) img.color = isSelected ? Color.white : new Color(0.7f, 0.7f, 0.7f, 0.65f);
-                soldier1Btn.transform.localScale = isSelected ? Vector3.one * 1.08f : Vector3.one;
-            }
+                Button btn = buttons[i];
+                if (btn == null) continue;
 
-            if (soldier2Btn != null && p1Castle.soldiers.Count >= 2)
-            {
-                bool isSelected = (p1Castle.soldiers[1] == activeSoldier);
-                Image img = soldier2Btn.GetComponent<Image>();
-                if (img != null) img.color = isSelected ? Color.white : new Color(0.7f, 0.7f, 0.7f, 0.65f);
-                soldier2Btn.transform.localScale = isSelected ? Vector3.one * 1.08f : Vector3.one;
+                Soldier soldier = p1Castle.soldiers[i];
+                bool isAvailable = (soldier != null && !soldier.IsDead && !soldier.hasFiredThisTurn);
+                bool isSelected = isAvailable && (soldier == activeSoldier);
+
+                btn.interactable = isAvailable;
+
+                Image img = btn.GetComponent<Image>();
+                if (img != null)
+                {
+                    if (!isAvailable)
+                    {
+                        img.color = new Color(0.35f, 0.35f, 0.35f, 0.4f);
+                    }
+                    else if (isSelected)
+                    {
+                        img.color = Color.white;
+                    }
+                    else
+                    {
+                        img.color = new Color(0.85f, 0.85f, 0.85f, 0.85f);
+                    }
+                }
+                btn.transform.localScale = isSelected ? Vector3.one * 1.08f : Vector3.one;
             }
         }
 
@@ -486,6 +613,11 @@ namespace CastleBusters.UI
                 Image img = soldierSelectPanel.GetComponent<Image>();
                 if (img != null) img.raycastTarget = false;
             }
+
+            if (actionCounterText != null) actionCounterText.gameObject.SetActive(false);
+            if (actionCounterTextTMP != null) actionCounterTextTMP.gameObject.SetActive(false);
+            if (turnText != null) turnText.gameObject.SetActive(false);
+            if (turnTextTMP != null) turnTextTMP.gameObject.SetActive(false);
         }
 
         private void SetupMovementButtons(CastleMovement movement)
@@ -535,10 +667,8 @@ namespace CastleBusters.UI
 
         private void UpdateActionUI(int actionsTaken)
         {
-            int actionsRemaining = TurnManager.MaxActionsPerTurn - actionsTaken;
-            string msg = $"Shots Remaining: {actionsRemaining}/{TurnManager.MaxActionsPerTurn}";
-            if (actionCounterText != null) actionCounterText.text = msg;
-            if (actionCounterTextTMP != null) actionCounterTextTMP.text = msg;
+            if (actionCounterText != null) actionCounterText.gameObject.SetActive(false);
+            if (actionCounterTextTMP != null) actionCounterTextTMP.gameObject.SetActive(false);
         }
 
         private float p1MaskFullWidth = 0f;
@@ -630,7 +760,7 @@ namespace CastleBusters.UI
                 p1DamageTrailCoroutine = StartCoroutine(AnimateP1DamageTrailRoutine(fill));
             }
 
-            string msg = $"P1 Castle: {pct}%";
+            string msg = $"{pct}%";
             if (p1CastleHealthText != null) p1CastleHealthText.text = msg;
             if (p1CastleHealthTextTMP != null) p1CastleHealthTextTMP.text = msg;
         }
@@ -686,7 +816,7 @@ namespace CastleBusters.UI
                 p2DamageTrailCoroutine = StartCoroutine(AnimateP2DamageTrailRoutine(fill));
             }
 
-            string msg = $"P2 Castle: {pct}%";
+            string msg = $"{pct}%";
             if (p2CastleHealthText != null) p2CastleHealthText.text = msg;
             if (p2CastleHealthTextTMP != null) p2CastleHealthTextTMP.text = msg;
         }

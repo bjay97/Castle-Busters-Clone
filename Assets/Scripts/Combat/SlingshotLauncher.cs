@@ -49,24 +49,6 @@ namespace CastleBusters.Combat
                     return;
                 }
             }
-
-            // Fallback for P1 soldier taking 2nd action
-            foreach (var s in soldiers)
-            {
-                if (s != null && s.ownerSide == PlayerSide.Player1 && !s.IsDead)
-                {
-                    s.hasFiredThisTurn = false;
-                    activeSoldier = s;
-                    return;
-                }
-            }
-
-            // General fallback
-            if (soldiers.Length > 0 && activeSoldier == null)
-            {
-                activeSoldier = soldiers[0];
-                activeSoldier.hasFiredThisTurn = false;
-            }
         }
 
         private void OnDestroy()
@@ -122,20 +104,6 @@ namespace CastleBusters.Combat
                     {
                         activeSoldier = s;
                         break;
-                    }
-                }
-
-                // If only 1 soldier is alive on this side, reset flag so they can take the 2nd shot of the turn
-                if (activeSoldier == null)
-                {
-                    foreach (var s in soldiers)
-                    {
-                        if (s != null && s.ownerSide == activeSide && !s.IsDead)
-                        {
-                            s.hasFiredThisTurn = false;
-                            activeSoldier = s;
-                            break;
-                        }
                     }
                 }
             }
