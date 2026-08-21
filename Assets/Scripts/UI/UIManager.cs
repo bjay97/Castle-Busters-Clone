@@ -274,9 +274,8 @@ namespace CastleBusters.UI
 
         private void UpdateTurnUI(PlayerSide side)
         {
-            string msg = (side == PlayerSide.Player1) ? "Player 1's Turn (Your Turn)" : "Player 2's Turn (AI Bot Thinking...)";
-            if (turnText != null) turnText.text = msg;
-            if (turnTextTMP != null) turnTextTMP.text = msg;
+            if (turnText != null) turnText.gameObject.SetActive(false);
+            if (turnTextTMP != null) turnTextTMP.gameObject.SetActive(false);
 
             if (turnSequenceCoroutine != null) StopCoroutine(turnSequenceCoroutine);
 
@@ -384,8 +383,14 @@ namespace CastleBusters.UI
                     TextMeshProUGUI t1TMP = soldier1Btn.GetComponentInChildren<TextMeshProUGUI>();
                     if (t1TMP != null) t1TMP.text = $"{s1.soldierName} 1 (Left)";
 
+                    bool is1Available = (s1 != null && !s1.IsDead && !s1.hasFiredThisTurn);
+                    soldier1Btn.interactable = is1Available;
+
                     soldier1Btn.onClick.RemoveAllListeners();
-                    soldier1Btn.onClick.AddListener(() => applySoldierSelection(s1, true));
+                    if (is1Available)
+                    {
+                        soldier1Btn.onClick.AddListener(() => applySoldierSelection(s1, true));
+                    }
                 }
 
                 if (soldier2Btn != null && p1Castle.soldiers.Count >= 2)
@@ -396,8 +401,14 @@ namespace CastleBusters.UI
                     TextMeshProUGUI t2TMP = soldier2Btn.GetComponentInChildren<TextMeshProUGUI>();
                     if (t2TMP != null) t2TMP.text = $"{s2.soldierName} 2 (Right)";
 
+                    bool is2Available = (s2 != null && !s2.IsDead && !s2.hasFiredThisTurn);
+                    soldier2Btn.interactable = is2Available;
+
                     soldier2Btn.onClick.RemoveAllListeners();
-                    soldier2Btn.onClick.AddListener(() => applySoldierSelection(s2, true));
+                    if (is2Available)
+                    {
+                        soldier2Btn.onClick.AddListener(() => applySoldierSelection(s2, true));
+                    }
                 }
             }
 
@@ -456,20 +467,35 @@ namespace CastleBusters.UI
         {
             if (p1Castle == null || p1Castle.soldiers == null || p1Castle.soldiers.Count == 0) return;
 
-            if (soldier1Btn != null && p1Castle.soldiers.Count >= 1)
+            Button[] buttons = new Button[] { soldier1Btn, soldier2Btn };
+            for (int i = 0; i < buttons.Length && i < p1Castle.soldiers.Count; i++)
             {
-                bool isSelected = (p1Castle.soldiers[0] == activeSoldier);
-                Image img = soldier1Btn.GetComponent<Image>();
-                if (img != null) img.color = isSelected ? Color.white : new Color(0.7f, 0.7f, 0.7f, 0.65f);
-                soldier1Btn.transform.localScale = isSelected ? Vector3.one * 1.08f : Vector3.one;
-            }
+                Button btn = buttons[i];
+                if (btn == null) continue;
 
-            if (soldier2Btn != null && p1Castle.soldiers.Count >= 2)
-            {
-                bool isSelected = (p1Castle.soldiers[1] == activeSoldier);
-                Image img = soldier2Btn.GetComponent<Image>();
-                if (img != null) img.color = isSelected ? Color.white : new Color(0.7f, 0.7f, 0.7f, 0.65f);
-                soldier2Btn.transform.localScale = isSelected ? Vector3.one * 1.08f : Vector3.one;
+                Soldier soldier = p1Castle.soldiers[i];
+                bool isAvailable = (soldier != null && !soldier.IsDead && !soldier.hasFiredThisTurn);
+                bool isSelected = isAvailable && (soldier == activeSoldier);
+
+                btn.interactable = isAvailable;
+
+                Image img = btn.GetComponent<Image>();
+                if (img != null)
+                {
+                    if (!isAvailable)
+                    {
+                        img.color = new Color(0.35f, 0.35f, 0.35f, 0.4f);
+                    }
+                    else if (isSelected)
+                    {
+                        img.color = Color.white;
+                    }
+                    else
+                    {
+                        img.color = new Color(0.85f, 0.85f, 0.85f, 0.85f);
+                    }
+                }
+                btn.transform.localScale = isSelected ? Vector3.one * 1.08f : Vector3.one;
             }
         }
 
@@ -486,6 +512,11 @@ namespace CastleBusters.UI
                 Image img = soldierSelectPanel.GetComponent<Image>();
                 if (img != null) img.raycastTarget = false;
             }
+
+            if (actionCounterText != null) actionCounterText.gameObject.SetActive(false);
+            if (actionCounterTextTMP != null) actionCounterTextTMP.gameObject.SetActive(false);
+            if (turnText != null) turnText.gameObject.SetActive(false);
+            if (turnTextTMP != null) turnTextTMP.gameObject.SetActive(false);
         }
 
         private void SetupMovementButtons(CastleMovement movement)
@@ -535,10 +566,8 @@ namespace CastleBusters.UI
 
         private void UpdateActionUI(int actionsTaken)
         {
-            int actionsRemaining = TurnManager.MaxActionsPerTurn - actionsTaken;
-            string msg = $"Shots Remaining: {actionsRemaining}/{TurnManager.MaxActionsPerTurn}";
-            if (actionCounterText != null) actionCounterText.text = msg;
-            if (actionCounterTextTMP != null) actionCounterTextTMP.text = msg;
+            if (actionCounterText != null) actionCounterText.gameObject.SetActive(false);
+            if (actionCounterTextTMP != null) actionCounterTextTMP.gameObject.SetActive(false);
         }
 
         private float p1MaskFullWidth = 0f;

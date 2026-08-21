@@ -1,5 +1,7 @@
 using System;
 using UnityEngine;
+using CastleBusters.Environment;
+using CastleBusters.Units;
 
 namespace CastleBusters.Core
 {
@@ -26,7 +28,8 @@ namespace CastleBusters.Core
         [Header("Turn State")]
         public PlayerSide activePlayer = PlayerSide.Player1;
         public int actionsTakenThisTurn = 0;
-        public const int MaxActionsPerTurn = 2;
+        public int maxActionsThisTurn = 1;
+        public const int MaxActionsPerTurn = 2; // Kept for legacy compatibility if referenced
 
         public event Action<PlayerSide> OnTurnChanged;
         public event Action<int> OnActionCountChanged;
@@ -51,9 +54,52 @@ namespace CastleBusters.Core
         {
             activePlayer = side;
             actionsTakenThisTurn = 0;
+            maxActionsThisTurn = GetAliveSoldierCountForSide(side);
+
+            ResetSoldierFiredFlags(side);
+
             if (CameraController.Instance != null) CameraController.Instance.FocusCastle(side);
             OnTurnChanged?.Invoke(activePlayer);
             OnActionCountChanged?.Invoke(actionsTakenThisTurn);
+        }
+
+        public int GetAliveSoldierCountForSide(PlayerSide side)
+        {
+            Castle castle = (side == PlayerSide.Player1) 
+                ? GameManager.Instance?.player1Castle 
+                : GameManager.Instance?.player2Castle;
+
+            int count = 0;
+            if (castle != null && castle.soldiers != null)
+            {
+                foreach (var s in castle.soldiers)
+                {
+                    if (s != null && !s.IsDead) count++;
+                }
+            }
+
+            if (count == 0)
+            {
+                Soldier[] soldiers = FindObjectsByType<Soldier>(FindObjectsSortMode.None);
+                foreach (var s in soldiers)
+                {
+                    if (s != null && s.ownerSide == side && !s.IsDead) count++;
+                }
+            }
+
+            return Mathf.Max(1, count);
+        }
+
+        public void ResetSoldierFiredFlags(PlayerSide side)
+        {
+            Soldier[] soldiers = FindObjectsByType<Soldier>(FindObjectsSortMode.None);
+            foreach (var s in soldiers)
+            {
+                if (s != null && s.ownerSide == side)
+                {
+                    s.hasFiredThisTurn = false;
+                }
+            }
         }
 
         public void RegisterActionFired()
@@ -86,7 +132,7 @@ namespace CastleBusters.Core
         {
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
 
-            if (actionsTakenThisTurn >= MaxActionsPerTurn)
+            if (actionsTakenThisTurn >= maxActionsThisTurn)
             {
                 // Switch turn to opposing player
                 PlayerSide nextPlayer = (activePlayer == PlayerSide.Player1) ? PlayerSide.Player2 : PlayerSide.Player1;
@@ -94,8 +140,31 @@ namespace CastleBusters.Core
             }
             else
             {
-                // Player still has actions remaining in current turn
-                OnTurnChanged?.Invoke(activePlayer);
+                // Check if any unfired alive soldier remains
+                bool hasUnfiredSoldier = false;
+                Castle activeCastle = (activePlayer == PlayerSide.Player1) ? GameManager.Instance?.player1Castle : GameManager.Instance?.player2Castle;
+                if (activeCastle != null)
+                {
+                    foreach (var s in activeCastle.soldiers)
+                    {
+                        if (s != null && !s.IsDead && !s.hasFiredThisTurn)
+                        {
+                            hasUnfiredSoldier = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!hasUnfiredSoldier)
+                {
+                    PlayerSide nextPlayer = (activePlayer == PlayerSide.Player1) ? PlayerSide.Player2 : PlayerSide.Player1;
+                    StartTurn(nextPlayer);
+                }
+                else
+                {
+                    // Player still has actions remaining in current turn
+                    OnTurnChanged?.Invoke(activePlayer);
+                }
             }
         }
     }
