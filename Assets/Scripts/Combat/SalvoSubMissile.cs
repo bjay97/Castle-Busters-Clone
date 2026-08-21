@@ -17,6 +17,7 @@ namespace CastleBusters.Combat
         protected override void Awake()
         {
             base.Awake();
+            if (debrisScaleMultiplier == 1.0f) debrisScaleMultiplier = 0.35f;
         }
 
         protected override void Start()

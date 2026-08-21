@@ -438,19 +438,19 @@ namespace CastleBusters.Environment
             return Mathf.Clamp01((float)currentCount / initialSolidPixelCount);
         }
 
-        public static void CarveAllFacadesAt(Vector2 worldPos, float radius, UnityEngine.Object customShape = null, bool allowRandomRotation = true, float scorchDarkeningOverride = -1f)
+        public static void CarveAllFacadesAt(Vector2 worldPos, float radius, UnityEngine.Object customShape = null, bool allowRandomRotation = true, float scorchDarkeningOverride = -1f, float debrisScaleMultiplier = 1.0f, Sprite[] customDebrisSprites = null)
         {
             FacadeGridBuilder[] builders = FindObjectsByType<FacadeGridBuilder>(FindObjectsSortMode.None);
             foreach (var builder in builders)
             {
                 if (builder != null)
                 {
-                    builder.CarveFacadeImpact(worldPos, radius, customShape, allowRandomRotation, scorchDarkeningOverride);
+                    builder.CarveFacadeImpact(worldPos, radius, customShape, allowRandomRotation, scorchDarkeningOverride, debrisScaleMultiplier, customDebrisSprites);
                 }
             }
         }
 
-        public void CarveFacadeImpact(Vector2 worldPos, float radius, UnityEngine.Object customShape = null, bool allowRandomRotation = true, float scorchDarkeningOverride = -1f)
+        public void CarveFacadeImpact(Vector2 worldPos, float radius, UnityEngine.Object customShape = null, bool allowRandomRotation = true, float scorchDarkeningOverride = -1f, float debrisScaleMultiplier = 1.0f, Sprite[] customDebrisSprites = null)
         {
             if (dynamicFacadeTexture == null)
             {
@@ -535,7 +535,7 @@ namespace CastleBusters.Environment
             // Spawn color-tinted facade debris chips
             if (enableDebrisParticles)
             {
-                SpawnImpactDebris(worldPos, originalHitColor, radius);
+                SpawnImpactDebris(worldPos, originalHitColor, radius, debrisScaleMultiplier, customDebrisSprites);
             }
         }
 
@@ -596,7 +596,7 @@ namespace CastleBusters.Environment
             return cachedDebrisChipPool;
         }
 
-        private void SpawnImpactDebris(Vector2 worldPos, Color sampledColor, float radius)
+        private void SpawnImpactDebris(Vector2 worldPos, Color sampledColor, float radius, float debrisScaleMultiplier = 1.0f, Sprite[] customDebrisSprites = null)
         {
             if (sampledColor.a < 0.1f)
             {
@@ -605,8 +605,10 @@ namespace CastleBusters.Environment
 
             int count = Mathf.Clamp(debrisCountPerImpact, 1, 25);
 
-            // Determine sprite asset pool to use
-            Sprite[] chipPool = (debrisChipSprites != null && debrisChipSprites.Length > 0) ? debrisChipSprites : GetOrCreateDefaultDebrisChipPool();
+            // Priority 1: Custom missile debris sprites -> Priority 2: Facade debrisChipSprites -> Priority 3: Fallback chip pool
+            Sprite[] chipPool = (customDebrisSprites != null && customDebrisSprites.Length > 0) 
+                ? customDebrisSprites 
+                : ((debrisChipSprites != null && debrisChipSprites.Length > 0) ? debrisChipSprites : GetOrCreateDefaultDebrisChipPool());
 
             for (int i = 0; i < count; i++)
             {
@@ -636,7 +638,8 @@ namespace CastleBusters.Environment
                 Vector2 randomDirection = (Random.insideUnitCircle.normalized + Vector2.up * 0.7f).normalized;
                 Vector2 velocityImpulse = randomDirection * Random.Range(3.5f, 8.5f);
                 float spin = Random.Range(-400f, 400f);
-                float scaleVal = (Random.value < 0.30f) ? Random.Range(1.50f, 2.40f) : Random.Range(0.60f, 1.35f);
+                float baseScaleVal = (Random.value < 0.30f) ? Random.Range(1.30f, 2.00f) : Random.Range(0.50f, 1.10f);
+                float scaleVal = baseScaleVal * Mathf.Clamp(debrisScaleMultiplier, 0.1f, 3.0f);
                 Vector3 scale = new Vector3(scaleVal, scaleVal, 1f);
 
                 FacadeDebrisPiece pieceComponent = pieceObj.AddComponent<FacadeDebrisPiece>();
