@@ -527,19 +527,7 @@ namespace CastleBusters.Environment
                 CarveProceduralNoiseCrater(cx, cy, avgR, texW, texH, scorchDarkeningOverride);
             }
 
-            // Damage underlying grid blocks within blast radius
-            DestructibleBlock[] blocks = GetComponentsInChildren<DestructibleBlock>();
-            foreach (var b in blocks)
-            {
-                if (b != null && !b.IsDestroyed)
-                {
-                    float distToBlock = Vector2.Distance(worldPos, b.transform.position);
-                    if (distToBlock <= radius * 1.2f)
-                    {
-                        b.TakeDamage(blockHealth * 2f); // ensure destruction inside crater
-                    }
-                }
-            }
+            // Note: DestructibleBlock damage within blast radius is handled by Projectile.ExplodeAtPosition using configured splashDamage.
 
             // Perform automatic pixel flood-fill cleanup for any isolated floating texture & physics sections
             CleanupFloatingTextureSections();

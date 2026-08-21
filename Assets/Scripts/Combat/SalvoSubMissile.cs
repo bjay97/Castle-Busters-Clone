@@ -6,9 +6,10 @@ namespace CastleBusters.Combat
 {
     public class SalvoSubMissile : Projectile
     {
-        [Header("Salvo Pepper Penetration")]
-        [Header("Salvo Pepper Penetration")]
-        [Range(0f, 1f)] public float punchThroughChance = 0.05f; // 5% chance to punch through outer wall
+        [Header("Salvo Pepper Penetration Config")]
+        [Range(0f, 1f)] public float punchThroughChance = 0.35f; // 35% chance for salvo missiles to penetrate deep into castle
+        public float penetrationDepth = 1.2f; // Distance traveled inside the castle before exploding
+        public float penetrationSpeed = 15f; // Penetration flight speed
         private bool hasPunchedThrough = false;
 
         private static System.Collections.Generic.List<SalvoSubMissile> activeSubMissiles = new System.Collections.Generic.List<SalvoSubMissile>();
@@ -16,9 +17,6 @@ namespace CastleBusters.Combat
         protected override void Awake()
         {
             base.Awake();
-            directDamageMultiplier = 2.0f;
-            explosionRadius = 0.35f; // Fine pepper scatter holes
-            splashDamage = 4.5f;
         }
 
         protected override void Start()
@@ -52,7 +50,7 @@ namespace CastleBusters.Combat
 
         private void FixedUpdate()
         {
-            if (rb != null && rb.linearVelocity.sqrMagnitude > 0.1f)
+            if (!hasPunchedThrough && rb != null && rb.linearVelocity.sqrMagnitude > 0.1f)
             {
                 lastFlightDirection = rb.linearVelocity.normalized;
                 lastFlightSpeed = rb.linearVelocity.magnitude;
@@ -61,30 +59,16 @@ namespace CastleBusters.Combat
 
         protected override void OnCollisionEnter2D(Collision2D collision)
         {
+            if (hasPunchedThrough) return;
+
             DestructibleBlock block = collision.gameObject.GetComponent<DestructibleBlock>();
-            if (block != null && !hasPunchedThrough)
+            if (block != null)
             {
-                // Roll chance to punch through outer facade into inner wall layers
+                // Roll chance to punch through outer facade into deeper inner wall layers
                 if (Random.value < punchThroughChance)
                 {
                     hasPunchedThrough = true;
-
-                    FacadeGridBuilder.CarveAllFacadesAt(collision.GetContact(0).point, explosionRadius);
-                    SpawnExplosionVFX(collision.GetContact(0).point);
-                    block.TakeDamage(splashDamage);
-
-                    // Convert collider to trigger so it glides straight through without physics collision bounce
-                    Collider2D myCol = GetComponent<Collider2D>();
-                    if (myCol != null)
-                    {
-                        myCol.isTrigger = true;
-                    }
-
-                    if (rb != null)
-                    {
-                        // Continue flying FORWARD in the exact pre-impact direction
-                        rb.linearVelocity = lastFlightDirection * lastFlightSpeed;
-                    }
+                    StartCoroutine(PenetrateDeepRoutine(collision.GetContact(0).point, lastFlightDirection));
                     return;
                 }
             }
@@ -99,16 +83,31 @@ namespace CastleBusters.Combat
             base.OnCollisionEnter2D(collision);
         }
 
-        private void OnTriggerEnter2D(Collider2D other)
+        private System.Collections.IEnumerator PenetrateDeepRoutine(Vector3 entryPoint, Vector2 flyDirection)
         {
-            if (!hasPunchedThrough) return;
+            // 1. Carve small entry hole at outer wall facade
+            FacadeGridBuilder.CarveAllFacadesAt(entryPoint, explosionRadius * 0.5f, customCraterShape);
 
-            DestructibleBlock block = other.GetComponent<DestructibleBlock>();
-            if (block != null)
+            // 2. Disable colliders so missile glides into inner castle without bouncing
+            Collider2D[] cols = GetComponentsInChildren<Collider2D>();
+            foreach (var c in cols) if (c != null) c.enabled = false;
+
+            // 3. Travel deeper into the castle wall
+            float flyTime = penetrationDepth / Mathf.Max(5f, penetrationSpeed);
+            float elapsedTime = 0f;
+            Vector3 startPos = transform.position;
+            Vector3 targetPos = startPos + (Vector3)(flyDirection.normalized * penetrationDepth);
+
+            while (elapsedTime < flyTime)
             {
-                block.TakeDamage(splashDamage);
-                Explode();
+                elapsedTime += Time.deltaTime;
+                float t = elapsedTime / flyTime;
+                transform.position = Vector3.Lerp(startPos, targetPos, t);
+                yield return null;
             }
+
+            // 4. Detonate deep inside the castle, carving an isolated interior crater and damaging inner blocks!
+            ExplodeAtPosition(transform.position);
         }
     }
 }

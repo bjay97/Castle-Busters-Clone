@@ -156,14 +156,14 @@ namespace CastleBusters.Combat
                     maskWorldWidth = (tex.width / 100f) * craterScaleMultiplier;
                 }
 
-                effectiveRadius = Mathf.Clamp(maskWorldWidth * 0.5f, 0.25f, 1.25f);
+                effectiveRadius = Mathf.Max(0.01f, maskWorldWidth * 0.5f);
                 float craterArea = Mathf.PI * effectiveRadius * effectiveRadius;
-                effectiveDamage = Mathf.Clamp(craterArea * damagePerCraterAreaUnit, 10f, 60f);
+                effectiveDamage = Mathf.Max(0f, craterArea * damagePerCraterAreaUnit);
             }
             else
             {
-                effectiveRadius = Mathf.Clamp(explosionRadius, 0.25f, 1.25f);
-                effectiveDamage = Mathf.Clamp(splashDamage, 10f, 60f);
+                effectiveRadius = Mathf.Max(0.01f, explosionRadius);
+                effectiveDamage = Mathf.Max(0f, splashDamage);
             }
         }
 
@@ -201,7 +201,9 @@ namespace CastleBusters.Combat
                 }
             }
 
-            Collider2D[] hitColliders = Physics2D.OverlapCircleAll(impactPoint, radius);
+            // Overlap check with shape-matched mask contour
+            float searchRadius = (customCraterShape != null) ? radius * 1.5f : radius;
+            Collider2D[] hitColliders = Physics2D.OverlapCircleAll(impactPoint, searchRadius);
             foreach (var hit in hitColliders)
             {
                 if (hit.gameObject == gameObject) continue;
@@ -212,7 +214,10 @@ namespace CastleBusters.Combat
                     Castle blockCastle = block.GetComponentInParent<Castle>();
                     if (blockCastle == null || allowFriendlyFire || blockCastle.ownerSide != ownerSide)
                     {
-                        block.TakeDamage(damage);
+                        if (IsPointInsideCraterShape(impactPoint, block.transform.position, radius))
+                        {
+                            block.TakeDamage(damage);
+                        }
                     }
                 }
 
@@ -221,19 +226,86 @@ namespace CastleBusters.Combat
                 {
                     if (allowFriendlyFire || soldier.ownerSide != ownerSide)
                     {
-                        soldier.TakeDamage(damage * 0.5f);
+                        if (IsPointInsideCraterShape(impactPoint, soldier.transform.position, radius))
+                        {
+                            soldier.TakeDamage(damage * 0.5f);
+                        }
                     }
                 }
 
                 Rigidbody2D hitRb = hit.GetComponent<Rigidbody2D>();
                 if (hitRb != null && hit.GetComponent<Projectile>() == null)
                 {
-                    Vector2 dir = (hitRb.transform.position - impactPoint).normalized;
-                    hitRb.AddForce(dir * splashDamage * 5f, ForceMode2D.Impulse);
+                    if (IsPointInsideCraterShape(impactPoint, hitRb.transform.position, radius))
+                    {
+                        Vector2 dir = (hitRb.transform.position - impactPoint).normalized;
+                        hitRb.AddForce(dir * splashDamage * 5f, ForceMode2D.Impulse);
+                    }
                 }
             }
 
             Destroy(gameObject);
+        }
+
+        public bool IsPointInsideCraterShape(Vector3 impactPoint, Vector3 targetPoint, float effectiveRadius)
+        {
+            Vector2 delta = (targetPoint - impactPoint);
+            float dist = delta.magnitude;
+
+            if (customCraterShape == null)
+            {
+                return dist <= effectiveRadius;
+            }
+
+            Texture2D maskTex = null;
+            Rect maskRect = Rect.zero;
+
+            if (customCraterShape is Sprite spr && spr != null)
+            {
+                maskTex = spr.texture;
+                maskRect = spr.textureRect;
+            }
+            else if (customCraterShape is Texture2D tex && tex != null)
+            {
+                maskTex = tex;
+                maskRect = new Rect(0, 0, tex.width, tex.height);
+            }
+
+            if (maskTex == null || !maskTex.isReadable)
+            {
+                return dist <= effectiveRadius; // Fallback to circle if texture is not readable
+            }
+
+            // Map local target position delta to normalized [0..1] mask UV space
+            float rdx = delta.x / Mathf.Max(0.01f, effectiveRadius);
+            float rdy = delta.y / Mathf.Max(0.01f, effectiveRadius);
+
+            float maskU = (rdx + 1f) * 0.5f;
+            float maskV = (rdy + 1f) * 0.5f;
+
+            if (maskU < 0f || maskU > 1f || maskV < 0f || maskV > 1f)
+            {
+                return false;
+            }
+
+            int mx = Mathf.Clamp(Mathf.FloorToInt(maskRect.x + maskU * maskRect.width), (int)maskRect.xMin, (int)maskRect.xMax - 1);
+            int my = Mathf.Clamp(Mathf.FloorToInt(maskRect.y + maskV * maskRect.height), (int)maskRect.yMin, (int)maskRect.yMax - 1);
+
+            try
+            {
+                Color maskCol = maskTex.GetPixel(mx, my);
+                float maskAlpha = maskCol.a;
+                if (maskAlpha <= 0.01f && (maskCol.r + maskCol.g + maskCol.b) > 1.5f)
+                {
+                    maskAlpha = (maskCol.r + maskCol.g + maskCol.b) / 3f;
+                }
+
+                return maskAlpha > 0.15f;
+            }
+            catch (System.Exception)
+            {
+                return dist <= effectiveRadius;
+            }
         }
 
         public void SpawnExplosionVFX(Vector3 position)
