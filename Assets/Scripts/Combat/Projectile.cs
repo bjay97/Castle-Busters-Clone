@@ -156,14 +156,14 @@ namespace CastleBusters.Combat
                     maskWorldWidth = (tex.width / 100f) * craterScaleMultiplier;
                 }
 
-                effectiveRadius = Mathf.Clamp(maskWorldWidth * 0.5f, 0.25f, 1.25f);
+                effectiveRadius = Mathf.Max(0.01f, maskWorldWidth * 0.5f);
                 float craterArea = Mathf.PI * effectiveRadius * effectiveRadius;
-                effectiveDamage = Mathf.Clamp(craterArea * damagePerCraterAreaUnit, 10f, 60f);
+                effectiveDamage = Mathf.Max(0f, craterArea * damagePerCraterAreaUnit);
             }
             else
             {
-                effectiveRadius = Mathf.Clamp(explosionRadius, 0.25f, 1.25f);
-                effectiveDamage = Mathf.Clamp(splashDamage, 10f, 60f);
+                effectiveRadius = Mathf.Max(0.01f, explosionRadius);
+                effectiveDamage = Mathf.Max(0f, splashDamage);
             }
         }
 

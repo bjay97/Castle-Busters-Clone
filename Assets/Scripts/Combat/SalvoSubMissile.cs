@@ -7,7 +7,6 @@ namespace CastleBusters.Combat
     public class SalvoSubMissile : Projectile
     {
         [Header("Salvo Pepper Penetration")]
-        [Header("Salvo Pepper Penetration")]
         [Range(0f, 1f)] public float punchThroughChance = 0.05f; // 5% chance to punch through outer wall
         private bool hasPunchedThrough = false;
 
@@ -16,9 +15,7 @@ namespace CastleBusters.Combat
         protected override void Awake()
         {
             base.Awake();
-            directDamageMultiplier = 2.0f;
-            explosionRadius = 0.35f; // Fine pepper scatter holes
-            splashDamage = 4.5f;
+            // Respect Inspector configured directDamageMultiplier, explosionRadius, and splashDamage values!
         }
 
         protected override void Start()
