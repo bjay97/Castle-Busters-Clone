@@ -630,7 +630,7 @@ namespace CastleBusters.UI
                 p1DamageTrailCoroutine = StartCoroutine(AnimateP1DamageTrailRoutine(fill));
             }
 
-            string msg = $"P1 Castle: {pct}%";
+            string msg = $"{pct}%";
             if (p1CastleHealthText != null) p1CastleHealthText.text = msg;
             if (p1CastleHealthTextTMP != null) p1CastleHealthTextTMP.text = msg;
         }
@@ -686,7 +686,7 @@ namespace CastleBusters.UI
                 p2DamageTrailCoroutine = StartCoroutine(AnimateP2DamageTrailRoutine(fill));
             }
 
-            string msg = $"P2 Castle: {pct}%";
+            string msg = $"{pct}%";
             if (p2CastleHealthText != null) p2CastleHealthText.text = msg;
             if (p2CastleHealthTextTMP != null) p2CastleHealthTextTMP.text = msg;
         }
