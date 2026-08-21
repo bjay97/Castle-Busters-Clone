@@ -81,6 +81,13 @@ namespace CastleBusters.Core
             }
         }
 
+        public void TriggerRoundLimitLoss()
+        {
+            if (IsGameOver) return;
+            Debug.Log("GAME OVER! Max rounds reached (12 rounds). Player 1 lost.");
+            EndGame(PlayerSide.Player2);
+        }
+
         private void EndGame(PlayerSide winner)
         {
             IsGameOver = true;

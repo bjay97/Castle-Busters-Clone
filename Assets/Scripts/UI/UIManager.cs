@@ -17,6 +17,12 @@ namespace CastleBusters.UI
         public Text actionCounterText;
         public TextMeshProUGUI actionCounterTextTMP;
 
+        [Header("Round & Timer HUD (Supports Legacy Text or TextMeshPro)")]
+        public Text roundText;
+        public TextMeshProUGUI roundTextTMP;
+        public Text timerText;
+        public TextMeshProUGUI timerTextTMP;
+
         [Header("Castle Health Bars (Supports Legacy Text or TextMeshPro)")]
         public Image p1CastleHealthFill;
         public RectTransform p1HealthMaskRect; // Optional RectMask2D / RectTransform container for 9-Sliced Health Bar
@@ -99,10 +105,14 @@ namespace CastleBusters.UI
             {
                 TurnManager.Instance.OnTurnChanged += UpdateTurnUI;
                 TurnManager.Instance.OnActionCountChanged += UpdateActionUI;
+                TurnManager.Instance.OnRoundChanged += UpdateRoundUI;
+                TurnManager.Instance.OnTurnTimerUpdated += UpdateTimerUI;
 
-                // Explicitly refresh turn and action HUD on Start
+                // Explicitly refresh turn, action, round, and timer HUD on Start
                 UpdateTurnUI(TurnManager.Instance.activePlayer);
                 UpdateActionUI(TurnManager.Instance.actionsTakenThisTurn);
+                UpdateRoundUI(TurnManager.Instance.currentRound, TurnManager.Instance.maxRounds);
+                UpdateTimerUI(TurnManager.Instance.currentTurnTimeRemaining, TurnManager.Instance.turnDuration);
             }
 
             if (GameManager.Instance != null)
@@ -123,6 +133,97 @@ namespace CastleBusters.UI
             // Auto bind listeners if castles registered after Start
             BindCastleHealthListeners();
             UpdateFPSCounter();
+            EnsureRoundAndTimerUI();
+        }
+
+        private void EnsureRoundAndTimerUI()
+        {
+            if (roundText != null || roundTextTMP != null || timerText != null || timerTextTMP != null) return;
+
+            Canvas canvas = FindFirstObjectByType<Canvas>();
+            if (canvas == null) return;
+
+            GameObject hudObj = new GameObject("RoundAndTimerHUD");
+            hudObj.transform.SetParent(canvas.transform, false);
+
+            RectTransform rect = hudObj.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 1f); // Top Center
+            rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, -15f);
+            rect.sizeDelta = new Vector2(360f, 45f);
+
+            // Round Text
+            GameObject roundObj = new GameObject("RoundText");
+            roundObj.transform.SetParent(hudObj.transform, false);
+            RectTransform roundRect = roundObj.AddComponent<RectTransform>();
+            roundRect.anchorMin = new Vector2(0f, 0f);
+            roundRect.anchorMax = new Vector2(0.48f, 1f);
+            roundRect.pivot = new Vector2(0.5f, 0.5f);
+            roundRect.anchoredPosition = Vector2.zero;
+
+            roundText = roundObj.AddComponent<Text>();
+            roundText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (roundText.font == null) roundText.font = Font.CreateDynamicFontFromOSFont("Arial", 20);
+            roundText.fontSize = 20;
+            roundText.fontStyle = FontStyle.Bold;
+            roundText.color = Color.white;
+            roundText.alignment = TextAnchor.MiddleCenter;
+            roundText.raycastTarget = false;
+
+            Outline rOutline = roundObj.AddComponent<Outline>();
+            rOutline.effectColor = Color.black;
+            rOutline.effectDistance = new Vector2(1.5f, -1.5f);
+
+            // Timer Text
+            GameObject timerObj = new GameObject("TimerText");
+            timerObj.transform.SetParent(hudObj.transform, false);
+            RectTransform timerRect = timerObj.AddComponent<RectTransform>();
+            timerRect.anchorMin = new Vector2(0.52f, 0f);
+            timerRect.anchorMax = new Vector2(1f, 1f);
+            timerRect.pivot = new Vector2(0.5f, 0.5f);
+            timerRect.anchoredPosition = Vector2.zero;
+
+            timerText = timerObj.AddComponent<Text>();
+            timerText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (timerText.font == null) timerText.font = Font.CreateDynamicFontFromOSFont("Arial", 20);
+            timerText.fontSize = 20;
+            timerText.fontStyle = FontStyle.Bold;
+            timerText.color = new Color(1.0f, 0.9f, 0.2f);
+            timerText.alignment = TextAnchor.MiddleCenter;
+            timerText.raycastTarget = false;
+
+            Outline tOutline = timerObj.AddComponent<Outline>();
+            tOutline.effectColor = Color.black;
+            tOutline.effectDistance = new Vector2(1.5f, -1.5f);
+        }
+
+        private void UpdateRoundUI(int current, int max)
+        {
+            EnsureRoundAndTimerUI();
+            string msg = $"Round {current}/{max}";
+            if (roundText != null) roundText.text = msg;
+            if (roundTextTMP != null) roundTextTMP.text = msg;
+        }
+
+        private void UpdateTimerUI(float remaining, float total)
+        {
+            EnsureRoundAndTimerUI();
+            int sec = Mathf.CeilToInt(remaining);
+            string msg = $"Time: {sec}s";
+
+            Color textColor = (remaining <= 5f) ? new Color(1.0f, 0.25f, 0.25f) : new Color(1.0f, 0.9f, 0.2f);
+
+            if (timerText != null)
+            {
+                timerText.text = msg;
+                timerText.color = textColor;
+            }
+            if (timerTextTMP != null)
+            {
+                timerTextTMP.text = msg;
+                timerTextTMP.color = textColor;
+            }
         }
 
         private void EnsureFPSCounterUI()
