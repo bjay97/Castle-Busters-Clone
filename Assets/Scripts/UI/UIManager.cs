@@ -410,15 +410,22 @@ namespace CastleBusters.UI
 
         private Coroutine turnSequenceCoroutine;
 
-        private void SetRoundAndTimerUIVisibility(bool visible)
+        private void SetTimerUIVisibility(bool visible)
         {
-            if (roundAndTimerPanel != null) roundAndTimerPanel.SetActive(visible);
+            // Keep Round panel and Round text visible at all times
+            if (roundAndTimerPanel != null) roundAndTimerPanel.SetActive(true);
+            if (roundText != null) roundText.gameObject.SetActive(true);
+            if (roundTextTMP != null) roundTextTMP.gameObject.SetActive(true);
+
+            // Hide/Show ONLY Timer elements during enemy turn
             if (timerProgressBarContainer != null) timerProgressBarContainer.SetActive(visible);
 
             if (timerProgressBarFill != null)
             {
                 timerProgressBarFill.gameObject.SetActive(visible);
-                if (timerProgressBarFill.transform.parent != null && timerProgressBarFill.transform.parent.GetComponent<Canvas>() == null)
+                if (timerProgressBarFill.transform.parent != null && 
+                    timerProgressBarFill.transform.parent.gameObject != roundAndTimerPanel && 
+                    timerProgressBarFill.transform.parent.GetComponent<Canvas>() == null)
                 {
                     timerProgressBarFill.transform.parent.gameObject.SetActive(visible);
                 }
@@ -427,7 +434,9 @@ namespace CastleBusters.UI
             if (timerProgressSlider != null)
             {
                 timerProgressSlider.gameObject.SetActive(visible);
-                if (timerProgressSlider.transform.parent != null && timerProgressSlider.transform.parent.GetComponent<Canvas>() == null)
+                if (timerProgressSlider.transform.parent != null && 
+                    timerProgressSlider.transform.parent.gameObject != roundAndTimerPanel && 
+                    timerProgressSlider.transform.parent.GetComponent<Canvas>() == null)
                 {
                     timerProgressSlider.transform.parent.gameObject.SetActive(visible);
                 }
@@ -436,7 +445,9 @@ namespace CastleBusters.UI
             if (timerMaskRect != null)
             {
                 timerMaskRect.gameObject.SetActive(visible);
-                if (timerMaskRect.transform.parent != null && timerMaskRect.transform.parent.GetComponent<Canvas>() == null)
+                if (timerMaskRect.transform.parent != null && 
+                    timerMaskRect.transform.parent.gameObject != roundAndTimerPanel && 
+                    timerMaskRect.transform.parent.GetComponent<Canvas>() == null)
                 {
                     timerMaskRect.transform.parent.gameObject.SetActive(visible);
                 }
@@ -444,8 +455,6 @@ namespace CastleBusters.UI
 
             if (timerText != null) timerText.gameObject.SetActive(visible);
             if (timerTextTMP != null) timerTextTMP.gameObject.SetActive(visible);
-            if (roundText != null) roundText.gameObject.SetActive(visible);
-            if (roundTextTMP != null) roundTextTMP.gameObject.SetActive(visible);
         }
 
         private void UpdateTurnUI(PlayerSide side)
@@ -455,7 +464,7 @@ namespace CastleBusters.UI
 
             if (turnSequenceCoroutine != null) StopCoroutine(turnSequenceCoroutine);
 
-            SetRoundAndTimerUIVisibility(side == PlayerSide.Player1);
+            SetTimerUIVisibility(side == PlayerSide.Player1);
 
             if (side == PlayerSide.Player1)
             {
