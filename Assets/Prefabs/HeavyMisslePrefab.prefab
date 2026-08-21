@@ -204,14 +204,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b15b9353840cfe94eaffe304a78313f5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CastleBusters.Combat.Projectile
-  directDamageMultiplier: 15
-  explosionRadius: 1.2
-  splashDamage: 50
+  directDamageMultiplier: 5
+  explosionRadius: 0.6
+  splashDamage: 8
   maxLifetime: 8
   speedMultiplier: 0.45
   ownerSide: 0
   allowFriendlyFire: 0
-  customCraterShape: {fileID: 2800000, guid: a86613f65d625964c989808bc8d88bdd, type: 3}
+  customCraterShape: {fileID: 2800000, guid: e0600256e92cca24592184079ed5a242, type: 3}
   useRandomRotationForShape: 1
   customScorchDarkening: -1
   useMaskNativeSize: 0
