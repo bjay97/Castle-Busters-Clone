@@ -17,11 +17,14 @@ namespace CastleBusters.UI
         public Text actionCounterText;
         public TextMeshProUGUI actionCounterTextTMP;
 
-        [Header("Round & Timer HUD (Supports Legacy Text or TextMeshPro)")]
+        [Header("Round & Timer HUD (Supports Legacy Text, TextMeshPro, Image Fill or Slider)")]
         public Text roundText;
         public TextMeshProUGUI roundTextTMP;
         public Text timerText;
         public TextMeshProUGUI timerTextTMP;
+        public Image timerProgressBarFill;
+        public Slider timerProgressSlider;
+        public RectTransform timerMaskRect;
 
         [Header("Castle Health Bars (Supports Legacy Text or TextMeshPro)")]
         public Image p1CastleHealthFill;
@@ -138,7 +141,7 @@ namespace CastleBusters.UI
 
         private void EnsureRoundAndTimerUI()
         {
-            if (roundText != null || roundTextTMP != null || timerText != null || timerTextTMP != null) return;
+            if (roundText != null || roundTextTMP != null || timerText != null || timerTextTMP != null || timerProgressBarFill != null || timerProgressSlider != null) return;
 
             Canvas canvas = FindFirstObjectByType<Canvas>();
             if (canvas == null) return;
@@ -210,7 +213,7 @@ namespace CastleBusters.UI
         {
             EnsureRoundAndTimerUI();
             int sec = Mathf.CeilToInt(remaining);
-            string msg = $"Time: {sec}s";
+            string msg = $"{sec}s";
 
             Color textColor = (remaining <= 5f) ? new Color(1.0f, 0.25f, 0.25f) : new Color(1.0f, 0.9f, 0.2f);
 
@@ -223,6 +226,36 @@ namespace CastleBusters.UI
             {
                 timerTextTMP.text = msg;
                 timerTextTMP.color = textColor;
+            }
+
+            // --- Update Round Timer Progress Bar ---
+            float fillFraction = (total > 0f) ? Mathf.Clamp01(remaining / total) : 0f;
+
+            if (timerProgressBarFill != null)
+            {
+                if (timerProgressBarFill.type == Image.Type.Filled)
+                {
+                    timerProgressBarFill.fillAmount = fillFraction;
+                }
+                else
+                {
+                    // If image is not set to Filled type, adjust transform scale or anchor
+                    Vector3 scale = timerProgressBarFill.transform.localScale;
+                    scale.x = fillFraction;
+                    timerProgressBarFill.transform.localScale = scale;
+                }
+            }
+
+            if (timerProgressSlider != null)
+            {
+                timerProgressSlider.value = fillFraction;
+            }
+
+            if (timerMaskRect != null)
+            {
+                Vector2 anchorMax = timerMaskRect.anchorMax;
+                anchorMax.x = fillFraction;
+                timerMaskRect.anchorMax = anchorMax;
             }
         }
 
