@@ -92,13 +92,76 @@ namespace CastleBusters.Environment
                 CreateFullDynamicFacadeVisual();
             }
 
-            // Disable all underlying tile SpriteRenderers so full dynamic mask facade visual is shown
-            SpriteRenderer[] childRenderers = GetComponentsInChildren<SpriteRenderer>(true);
-            foreach (var sr in childRenderers)
+            RefreshChunkColliders();
+        }
+
+        [Header("In-Game Debug Visualizer")]
+        public bool showDebugColliderOverlay = true;
+
+        public void RefreshChunkColliders()
+        {
+            if (columns <= 0 || rows <= 0) return;
+
+            DestructibleBlock[] blocks = GetComponentsInChildren<DestructibleBlock>(true);
+            foreach (var b in blocks)
             {
+                if (b == null) continue;
+
+                Vector3 localPos = transform.InverseTransformPoint(b.transform.position);
+                int c = Mathf.Clamp(Mathf.FloorToInt((localPos.x + totalWidth / 2f) / totalWidth * columns), 0, columns - 1);
+                int r = Mathf.Clamp(Mathf.FloorToInt((localPos.y + totalHeight / 2f) / totalHeight * rows), 0, rows - 1);
+
+                bool isSolid = GetChunkSolidBounds(c, r, out Vector2 offset, out Vector2 size);
+                if (!isSolid)
+                {
+                    // Instantly purge empty-air chunk GameObjects from the scene!
+                    if (Application.isPlaying) Destroy(b.gameObject);
+                    else DestroyImmediate(b.gameObject);
+                    continue;
+                }
+
+                BoxCollider2D boxCol = b.GetComponent<BoxCollider2D>();
+                if (boxCol != null)
+                {
+                    boxCol.offset = offset;
+                    boxCol.size = size;
+                }
+
+                // In-Game Debug Collider Painting
+                SpriteRenderer sr = b.GetComponent<SpriteRenderer>();
                 if (sr != null && sr != fullFacadeRenderer)
                 {
-                    sr.enabled = false;
+                    if (showDebugColliderOverlay)
+                    {
+                        sr.enabled = true;
+                        sr.sortingOrder = 999; // Draw on top of everything in-game!
+                        sr.color = new Color(0f, 1f, 0f, 0.40f); // Bright Transparent Green for active colliders
+                        sr.transform.localPosition = localPos + (Vector3)offset;
+                        sr.transform.localScale = new Vector3((totalWidth / columns) * size.x, (totalHeight / rows) * size.y, 1f);
+                    }
+                    else
+                    {
+                        sr.enabled = false;
+                    }
+                }
+            }
+        }
+
+        private void OnDrawGizmos()
+        {
+            if (!showDebugColliderOverlay) return;
+
+            DestructibleBlock[] blocks = GetComponentsInChildren<DestructibleBlock>(true);
+            foreach (var b in blocks)
+            {
+                if (b == null) continue;
+                BoxCollider2D boxCol = b.GetComponent<BoxCollider2D>();
+                if (boxCol != null && boxCol.enabled)
+                {
+                    Gizmos.color = new Color(0f, 1f, 0f, 0.6f);
+                    Vector3 center = b.transform.position + (Vector3)boxCol.offset;
+                    Vector3 size = new Vector3(b.transform.lossyScale.x * boxCol.size.x, b.transform.lossyScale.y * boxCol.size.y, 0.1f);
+                    Gizmos.DrawWireCube(center, size);
                 }
             }
         }
@@ -162,8 +225,16 @@ namespace CastleBusters.Environment
                     sr.enabled = false; // Hide individual tiles so dynamic masked texture is visible
                     chunk.transform.localScale = new Vector3(chunkWidth, chunkHeight, 1f);
 
+                    bool isSolidChunk = GetChunkSolidBounds(c, r, out Vector2 offset, out Vector2 size);
+                    if (!isSolidChunk)
+                    {
+                        DestroyImmediate(chunk);
+                        continue; // Skip creating empty-air chunk GameObjects entirely!
+                    }
+
                     BoxCollider2D col = chunk.AddComponent<BoxCollider2D>();
-                    col.size = Vector2.one;
+                    col.offset = offset;
+                    col.size = size;
 
                     DestructibleBlock block = chunk.AddComponent<DestructibleBlock>();
                     block.materialType = materialType;
@@ -266,6 +337,78 @@ namespace CastleBusters.Environment
             }
 
             CalculateInitialSolidPixels();
+        }
+
+        public bool GetChunkSolidBounds(int colIndex, int rowIndex, out Vector2 offset, out Vector2 size)
+        {
+            offset = Vector2.zero;
+            size = Vector2.one;
+
+            Texture2D tex = (dynamicFacadeTexture != null) ? dynamicFacadeTexture : castleTexture;
+            if (tex == null) return true;
+
+            int texWidth = tex.width;
+            int texHeight = tex.height;
+
+            int startX = Mathf.FloorToInt((float)colIndex / columns * texWidth);
+            int endX = Mathf.FloorToInt((float)(colIndex + 1) / columns * texWidth);
+            int startY = Mathf.FloorToInt((float)rowIndex / rows * texHeight);
+            int endY = Mathf.FloorToInt((float)(rowIndex + 1) / rows * texHeight);
+
+            startX = Mathf.Clamp(startX, 0, texWidth - 1);
+            endX = Mathf.Clamp(endX, startX + 1, texWidth);
+            startY = Mathf.Clamp(startY, 0, texHeight - 1);
+            endY = Mathf.Clamp(endY, startY + 1, texHeight);
+
+            int width = endX - startX;
+            int height = endY - startY;
+            if (width <= 0 || height <= 0) return true;
+
+            Color[] pixels = tex.GetPixels(startX, startY, width, height);
+
+            int minX = width, maxX = -1, minY = height, maxY = -1;
+            int solidCount = 0;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    if (pixels[y * width + x].a > 0.35f)
+                    {
+                        solidCount++;
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+
+            // Require at least 4 solid pixels to create an active collider
+            if (solidCount < 4 || maxX < minX || maxY < minY)
+            {
+                return false; // Transparent empty air -> disable collider!
+            }
+
+            // Calculate tight normalized offset and size within this chunk (0.0 to 1.0)
+            float normMinX = (float)minX / width;
+            float normMaxX = (float)(maxX + 1) / width;
+            float normMinY = (float)minY / height;
+            float normMaxY = (float)(maxY + 1) / height;
+
+            float normW = normMaxX - normMinX;
+            float normH = normMaxY - normMinY;
+            float normCenterX = (normMinX + normMaxX) * 0.5f - 0.5f;
+            float normCenterY = (normMinY + normMaxY) * 0.5f - 0.5f;
+
+            size = new Vector2(normW, normH);
+            offset = new Vector2(normCenterX, normCenterY);
+            return true;
+        }
+
+        public bool IsChunkSolid(int colIndex, int rowIndex)
+        {
+            return GetChunkSolidBounds(colIndex, rowIndex, out _, out _);
         }
 
         private int initialSolidPixelCount = 0;
@@ -478,6 +621,8 @@ namespace CastleBusters.Environment
                 FacadeDebrisPiece pieceComponent = pieceObj.AddComponent<FacadeDebrisPiece>();
                 pieceComponent.Initialize(pieceColor, velocityImpulse, spin, scale);
             }
+
+            RefreshChunkColliders();
         }
 
         private bool GetMaskTextureAndRect(UnityEngine.Object maskObj, out Texture2D maskTex, out Rect maskRect, out string maskName)

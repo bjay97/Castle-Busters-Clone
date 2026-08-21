@@ -7,7 +7,8 @@ namespace CastleBusters.Combat
     public class SalvoSubMissile : Projectile
     {
         [Header("Salvo Pepper Penetration")]
-        [Range(0f, 1f)] public float punchThroughChance = 0.25f; // 25% chance to punch through outer wall
+        [Header("Salvo Pepper Penetration")]
+        [Range(0f, 1f)] public float punchThroughChance = 0.05f; // 5% chance to punch through outer wall
         private bool hasPunchedThrough = false;
 
         private static System.Collections.Generic.List<SalvoSubMissile> activeSubMissiles = new System.Collections.Generic.List<SalvoSubMissile>();
@@ -15,9 +16,9 @@ namespace CastleBusters.Combat
         protected override void Awake()
         {
             base.Awake();
-            directDamageMultiplier = 5f;
-            explosionRadius = 0.65f;
-            splashDamage = 12f;
+            directDamageMultiplier = 2.0f;
+            explosionRadius = 0.35f; // Fine pepper scatter holes
+            splashDamage = 4.5f;
         }
 
         protected override void Start()

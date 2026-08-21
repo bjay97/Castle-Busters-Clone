@@ -93,30 +93,45 @@ namespace CastleBusters.Combat
         {
             if (hasExploded) return;
 
-            float impactSpeed = collision.relativeVelocity.magnitude;
-            
-            // Direct hit damage to DestructibleBlock or Soldier
+            // Check if collision is with a friendly castle block
             DestructibleBlock block = collision.gameObject.GetComponent<DestructibleBlock>();
             if (block != null)
             {
                 Castle blockCastle = block.GetComponentInParent<Castle>();
-                if (blockCastle == null || allowFriendlyFire || blockCastle.ownerSide != ownerSide)
+                if (blockCastle != null && !allowFriendlyFire && blockCastle.ownerSide == ownerSide)
                 {
-                    block.TakeDamage(impactSpeed * directDamageMultiplier);
+                    Physics2D.IgnoreCollision(collision.collider, collision.otherCollider);
+                    return; // Ignore friendly castle blocks!
                 }
             }
 
+            // Check if collision is with a friendly soldier
             Soldier soldier = collision.gameObject.GetComponent<Soldier>();
             if (soldier != null)
             {
-                if (allowFriendlyFire || soldier.ownerSide != ownerSide)
+                if (!allowFriendlyFire && soldier.ownerSide == ownerSide)
                 {
-                    soldier.TakeDamage(impactSpeed * directDamageMultiplier * 0.8f);
+                    Physics2D.IgnoreCollision(collision.collider, collision.otherCollider);
+                    return; // Ignore friendly soldiers!
                 }
             }
 
-            // Explosion splash
-            Explode();
+            float impactSpeed = collision.relativeVelocity.magnitude;
+            
+            // Direct hit damage to enemy DestructibleBlock or enemy Soldier
+            if (block != null)
+            {
+                block.TakeDamage(impactSpeed * directDamageMultiplier);
+            }
+
+            if (soldier != null)
+            {
+                soldier.TakeDamage(impactSpeed * directDamageMultiplier * 0.8f);
+            }
+
+            // Always center explosion on exact surface contact point of enemy target or terrain!
+            Vector2 contactPoint = (collision.contactCount > 0) ? collision.GetContact(0).point : (Vector2)transform.position;
+            ExplodeAtPosition(contactPoint);
         }
 
         [Header("Explosion VFX")]
@@ -141,13 +156,23 @@ namespace CastleBusters.Combat
                     maskWorldWidth = (tex.width / 100f) * craterScaleMultiplier;
                 }
 
-                effectiveRadius = Mathf.Max(0.1f, maskWorldWidth * 0.5f);
+                effectiveRadius = Mathf.Clamp(maskWorldWidth * 0.5f, 0.25f, 1.25f);
                 float craterArea = Mathf.PI * effectiveRadius * effectiveRadius;
-                effectiveDamage = Mathf.Max(10f, craterArea * damagePerCraterAreaUnit);
+                effectiveDamage = Mathf.Clamp(craterArea * damagePerCraterAreaUnit, 10f, 60f);
+            }
+            else
+            {
+                effectiveRadius = Mathf.Clamp(explosionRadius, 0.25f, 1.25f);
+                effectiveDamage = Mathf.Clamp(splashDamage, 10f, 60f);
             }
         }
 
         protected virtual void Explode()
+        {
+            ExplodeAtPosition(transform.position);
+        }
+
+        public virtual void ExplodeAtPosition(Vector3 impactPoint)
         {
             hasExploded = true;
 
@@ -159,7 +184,7 @@ namespace CastleBusters.Combat
             if (trail != null) trail.StopEmitting();
 
             // Spawn explosion VFX at impact position
-            SpawnExplosionVFX(transform.position);
+            SpawnExplosionVFX(impactPoint);
 
             // Carve facade ONLY for enemy castles (skip friendly castle if friendly fire disabled)
             FacadeGridBuilder[] builders = FindObjectsByType<FacadeGridBuilder>(FindObjectsSortMode.None);
@@ -172,11 +197,11 @@ namespace CastleBusters.Combat
                     {
                         continue; // Skip carving friendly castle facade!
                     }
-                    builder.CarveFacadeImpact(transform.position, radius, customCraterShape, useRandomRotationForShape, customScorchDarkening);
+                    builder.CarveFacadeImpact(impactPoint, radius, customCraterShape, useRandomRotationForShape, customScorchDarkening);
                 }
             }
 
-            Collider2D[] hitColliders = Physics2D.OverlapCircleAll(transform.position, radius);
+            Collider2D[] hitColliders = Physics2D.OverlapCircleAll(impactPoint, radius);
             foreach (var hit in hitColliders)
             {
                 if (hit.gameObject == gameObject) continue;
@@ -203,7 +228,7 @@ namespace CastleBusters.Combat
                 Rigidbody2D hitRb = hit.GetComponent<Rigidbody2D>();
                 if (hitRb != null && hit.GetComponent<Projectile>() == null)
                 {
-                    Vector2 dir = (hitRb.transform.position - transform.position).normalized;
+                    Vector2 dir = (hitRb.transform.position - impactPoint).normalized;
                     hitRb.AddForce(dir * splashDamage * 5f, ForceMode2D.Impulse);
                 }
             }

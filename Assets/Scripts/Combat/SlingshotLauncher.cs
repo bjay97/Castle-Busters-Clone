@@ -318,10 +318,21 @@ namespace CastleBusters.Combat
             }
 
             Collider2D projCol = projObj.GetComponent<Collider2D>();
-            Collider2D soldierCol = soldier.GetComponent<Collider2D>();
-            if (projCol != null && soldierCol != null)
+            if (projCol != null)
             {
-                Physics2D.IgnoreCollision(projCol, soldierCol);
+                Castle ownCastle = soldier.GetComponentInParent<Castle>();
+                if (ownCastle == null && GameManager.Instance != null)
+                {
+                    ownCastle = (soldier.ownerSide == PlayerSide.Player1) ? GameManager.Instance.player1Castle : GameManager.Instance.player2Castle;
+                }
+                if (ownCastle != null)
+                {
+                    Collider2D[] ownColliders = ownCastle.GetComponentsInChildren<Collider2D>();
+                    foreach (var c in ownColliders)
+                    {
+                        if (c != null && c != projCol) Physics2D.IgnoreCollision(projCol, c);
+                    }
+                }
             }
 
             Rigidbody2D rb = projObj.GetComponent<Rigidbody2D>();
@@ -339,7 +350,7 @@ namespace CastleBusters.Combat
 
         private System.Collections.IEnumerator FireSalvoRoutine(Soldier soldier, Vector2 baseLaunchVelocity)
         {
-            int count = Mathf.Clamp(soldier.salvoCount, 10, 16);
+            int count = Mathf.Clamp(soldier.salvoCount, 4, 12);
             float interval = Mathf.Clamp(soldier.salvoInterval, 0.05f, 0.2f);
             float spread = soldier.salvoSpreadAngle;
 

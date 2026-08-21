@@ -37,7 +37,7 @@ namespace CastleBusters.Units
         [Header("Abilities & Fire Mode")]
         public FireMode fireMode = FireMode.SingleMissile;
         public GameObject projectilePrefab;
-        public int salvoCount = 14; // 10 to 16 missiles sent at 0.1s intervals
+        public int salvoCount = 7; // Balanced 7 sub-missiles per salvo barrage
         public float salvoInterval = 0.1f;
         public float salvoSpreadAngle = 6f;
         public float launchForceMultiplier = 12f;
