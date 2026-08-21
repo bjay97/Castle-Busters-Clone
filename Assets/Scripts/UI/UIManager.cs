@@ -18,6 +18,8 @@ namespace CastleBusters.UI
         public TextMeshProUGUI actionCounterTextTMP;
 
         [Header("Round & Timer HUD (Supports Legacy Text, TextMeshPro, Image Fill or Slider)")]
+        public GameObject roundAndTimerPanel;
+        public GameObject timerProgressBarContainer;
         public Text roundText;
         public TextMeshProUGUI roundTextTMP;
         public Text timerText;
@@ -148,6 +150,8 @@ namespace CastleBusters.UI
 
             GameObject hudObj = new GameObject("RoundAndTimerHUD");
             hudObj.transform.SetParent(canvas.transform, false);
+
+            roundAndTimerPanel = hudObj;
 
             RectTransform rect = hudObj.AddComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 1f); // Top Center
@@ -406,12 +410,52 @@ namespace CastleBusters.UI
 
         private Coroutine turnSequenceCoroutine;
 
+        private void SetRoundAndTimerUIVisibility(bool visible)
+        {
+            if (roundAndTimerPanel != null) roundAndTimerPanel.SetActive(visible);
+            if (timerProgressBarContainer != null) timerProgressBarContainer.SetActive(visible);
+
+            if (timerProgressBarFill != null)
+            {
+                timerProgressBarFill.gameObject.SetActive(visible);
+                if (timerProgressBarFill.transform.parent != null && timerProgressBarFill.transform.parent.GetComponent<Canvas>() == null)
+                {
+                    timerProgressBarFill.transform.parent.gameObject.SetActive(visible);
+                }
+            }
+
+            if (timerProgressSlider != null)
+            {
+                timerProgressSlider.gameObject.SetActive(visible);
+                if (timerProgressSlider.transform.parent != null && timerProgressSlider.transform.parent.GetComponent<Canvas>() == null)
+                {
+                    timerProgressSlider.transform.parent.gameObject.SetActive(visible);
+                }
+            }
+
+            if (timerMaskRect != null)
+            {
+                timerMaskRect.gameObject.SetActive(visible);
+                if (timerMaskRect.transform.parent != null && timerMaskRect.transform.parent.GetComponent<Canvas>() == null)
+                {
+                    timerMaskRect.transform.parent.gameObject.SetActive(visible);
+                }
+            }
+
+            if (timerText != null) timerText.gameObject.SetActive(visible);
+            if (timerTextTMP != null) timerTextTMP.gameObject.SetActive(visible);
+            if (roundText != null) roundText.gameObject.SetActive(visible);
+            if (roundTextTMP != null) roundTextTMP.gameObject.SetActive(visible);
+        }
+
         private void UpdateTurnUI(PlayerSide side)
         {
             if (turnText != null) turnText.gameObject.SetActive(false);
             if (turnTextTMP != null) turnTextTMP.gameObject.SetActive(false);
 
             if (turnSequenceCoroutine != null) StopCoroutine(turnSequenceCoroutine);
+
+            SetRoundAndTimerUIVisibility(side == PlayerSide.Player1);
 
             if (side == PlayerSide.Player1)
             {

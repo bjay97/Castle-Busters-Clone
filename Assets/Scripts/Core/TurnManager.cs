@@ -106,12 +106,39 @@ namespace CastleBusters.Core
                 ? GameManager.Instance?.player1Castle 
                 : GameManager.Instance?.player2Castle;
 
-            int count = 0;
-            if (castle != null && castle.soldiers != null)
+            if (castle == null)
             {
+                Castle[] foundCastles = FindObjectsByType<Castle>(FindObjectsSortMode.None);
+                foreach (var c in foundCastles)
+                {
+                    if (c != null && c.ownerSide == side)
+                    {
+                        castle = c;
+                        break;
+                    }
+                }
+            }
+
+            int count = 0;
+            if (castle != null)
+            {
+                if (castle.soldiers == null || castle.soldiers.Count == 0)
+                {
+                    castle.RefreshCastleHealth();
+                }
+
                 foreach (var s in castle.soldiers)
                 {
                     if (s != null && !s.IsDead) count++;
+                }
+
+                if (count == 0)
+                {
+                    Soldier[] childSoldiers = castle.GetComponentsInChildren<Soldier>(true);
+                    foreach (var s in childSoldiers)
+                    {
+                        if (s != null && !s.IsDead) count++;
+                    }
                 }
             }
 
@@ -221,7 +248,10 @@ namespace CastleBusters.Core
                 }
                 else
                 {
-                    // Player still has actions remaining in current turn
+                    // Player still has actions remaining in current turn: restart timer for remaining soldier
+                    currentTurnTimeRemaining = turnDuration;
+                    isTimerRunning = true;
+                    OnTurnTimerUpdated?.Invoke(currentTurnTimeRemaining, turnDuration);
                     OnTurnChanged?.Invoke(activePlayer);
                 }
             }

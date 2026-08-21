@@ -45,7 +45,7 @@ namespace CastleBusters.Units
 
         [Header("Health")]
         public float maxHealth = 100f;
-        public float currentHealth;
+        public float currentHealth = 100f;
         public bool IsDead => currentHealth <= 0;
 
         [Header("Collision Sensitivity")]
@@ -55,9 +55,14 @@ namespace CastleBusters.Units
         public event Action<float, float> OnHealthChanged;
         public event Action OnSoldierDied;
 
+        private void Awake()
+        {
+            if (currentHealth <= 0f) currentHealth = maxHealth;
+        }
+
         private void Start()
         {
-            currentHealth = maxHealth;
+            if (currentHealth <= 0f) currentHealth = maxHealth;
             OnHealthChanged?.Invoke(currentHealth, maxHealth);
 
             if (TurnManager.Instance != null)
