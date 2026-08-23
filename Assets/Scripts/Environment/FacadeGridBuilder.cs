@@ -35,6 +35,11 @@ namespace CastleBusters.Environment
         public int debrisCountPerImpact = 8; // Number of debris chips spawned per impact
         public Sprite[] debrisChipSprites; // Pre-loaded debris chip sprites (auto-generates default if empty)
 
+        [Header("Facade Destruction Audio Config")]
+        public AudioClip[] facadeDestructionSounds; // Array of facade crumble/destruction SFX clips
+        [Range(0f, 1f)] public float facadeDestructionVolume = 0.85f;
+        public Vector2 pitchRandomRange = new Vector2(0.85f, 1.15f); // Random pitch shift for acoustic variety
+
         [Header("Castle Interior Sync")]
         public SpriteRenderer castleInteriorRenderer; // Optional Castle Interior renderer to auto-align 1:1 with facade visual
 
@@ -537,6 +542,9 @@ namespace CastleBusters.Environment
             {
                 SpawnImpactDebris(worldPos, originalHitColor, radius, debrisScaleMultiplier, customDebrisSprites);
             }
+
+            // Play randomized facade destruction SFX
+            PlayFacadeDestructionSFX(worldPos);
         }
 
         private static Sprite[] cachedDebrisChipPool;
@@ -647,6 +655,30 @@ namespace CastleBusters.Environment
             }
 
             RefreshChunkColliders();
+        }
+
+        private void PlayFacadeDestructionSFX(Vector2 worldPos)
+        {
+            if (facadeDestructionSounds == null || facadeDestructionSounds.Length == 0) return;
+
+            // Pick a random clip from the facade destruction pool
+            AudioClip chosenClip = facadeDestructionSounds[Random.Range(0, facadeDestructionSounds.Length)];
+            if (chosenClip == null) return;
+
+            // Create temporary spatial AudioSource object at impact point
+            GameObject sfxObj = new GameObject("TempFacadeDestructionSFX");
+            sfxObj.transform.position = (Vector3)worldPos;
+
+            AudioSource audioSource = sfxObj.AddComponent<AudioSource>();
+            audioSource.clip = chosenClip;
+            audioSource.volume = facadeDestructionVolume;
+            audioSource.pitch = Random.Range(pitchRandomRange.x, pitchRandomRange.y);
+            audioSource.spatialBlend = 0.5f; // Balanced 2D/3D spatial audio
+            audioSource.Play();
+
+            // Destroy temp audio object after clip finishes playing
+            float duration = chosenClip.length / Mathf.Max(0.1f, audioSource.pitch);
+            Destroy(sfxObj, duration);
         }
 
         private bool GetMaskTextureAndRect(UnityEngine.Object maskObj, out Texture2D maskTex, out Rect maskRect, out string maskName)
