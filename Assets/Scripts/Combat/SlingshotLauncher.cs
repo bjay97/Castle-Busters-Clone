@@ -45,6 +45,19 @@ namespace CastleBusters.Combat
         public string pointerSortingLayerName = "Default"; // Sorting layer name
         public int pointerSortingOrder = 500; // High sorting order (500) so pointer renders on top of castle interior and facade
 
+        [Header("Selected Soldier Downward Arrow Indicator")]
+        public bool enableSoldierIndicator = true; // Enables downward arrow indicator over active soldier
+        public GameObject customSoldierIndicatorPrefab; // Optional custom UI prefab for selected soldier arrow
+        public RectTransform sceneSoldierIndicatorUIElement; // Optional Canvas UI element already in your UI hierarchy
+        public Sprite customSoldierIndicatorSprite; // Optional custom sprite for downward arrow badge
+        public Vector3 soldierIndicatorOffset = new Vector3(0f, 1.8f, 0f); // Default position above soldier (0, 1.8, 0)
+        public float soldierIndicatorBobAmount = 0.15f; // Vertical bobbing float height
+        public float soldierIndicatorBobSpeed = 4.0f; // Bobbing animation speed
+        public Color soldierIndicatorColor = new Color(1f, 0.88f, 0.15f, 0.95f); // Sleek gold arrow color
+        public bool hideIndicatorWhileAiming = false; // Hide arrow indicator while dragging slingshot
+        public string soldierIndicatorSortingLayerName = "Default";
+        public int soldierIndicatorSortingOrder = 550; // Render above soldiers and castle facade
+
         public event System.Action<bool, bool> OnAimCancelStateChanged; // Event fired when aiming state changes (isAiming, isHoveringCancel)
         public event System.Action<bool, float, float> OnAimingStatsChanged; // Event fired when aiming stats update (isAiming, powerPercent, angleDegrees)
 
@@ -57,6 +70,9 @@ namespace CastleBusters.Combat
 
         private GameObject pointerHandleInstance;
         private Vector3 initialPointerHandleScale = Vector3.one;
+
+        private GameObject soldierIndicatorInstance;
+        private Vector3 initialSoldierIndicatorScale = Vector3.one;
 
         private bool isDragging = false;
         private Vector2 dragStartPosition;
@@ -205,6 +221,11 @@ namespace CastleBusters.Combat
         private void Update()
         {
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
+
+            bool showIndicator = (enableSoldierIndicator && activeSoldier != null && !activeSoldier.IsDead && isAimingAllowed);
+            if (hideIndicatorWhileAiming && isDragging) showIndicator = false;
+            UpdateSoldierIndicatorUIState(showIndicator);
+
             if (!isAimingAllowed) return;
             if (activeSoldier == null || activeSoldier.IsDead || activeSoldier.hasFiredThisTurn) return;
 
@@ -734,6 +755,131 @@ namespace CastleBusters.Combat
 
                     Vector3 targetScale = new Vector3(initialPointerHandleScale.x * pointerHandleScale, initialPointerHandleScale.y * pointerHandleScale, initialPointerHandleScale.z);
                     pointerHandleInstance.transform.localScale = targetScale;
+                }
+            }
+        }
+
+        private void EnsureSoldierIndicatorUIInitialized()
+        {
+            if (sceneSoldierIndicatorUIElement != null)
+            {
+                soldierIndicatorInstance = sceneSoldierIndicatorUIElement.gameObject;
+                ApplySoldierIndicatorSortingOrder(soldierIndicatorInstance);
+                return;
+            }
+
+            if (soldierIndicatorInstance != null) return;
+
+            if (customSoldierIndicatorPrefab != null)
+            {
+                soldierIndicatorInstance = Instantiate(customSoldierIndicatorPrefab);
+                initialSoldierIndicatorScale = customSoldierIndicatorPrefab.transform.localScale;
+                if (initialSoldierIndicatorScale == Vector3.zero) initialSoldierIndicatorScale = Vector3.one;
+
+                if (soldierIndicatorInstance.GetComponent<RectTransform>() != null && soldierIndicatorInstance.GetComponent<Canvas>() == null && soldierIndicatorInstance.GetComponentInParent<Canvas>() == null)
+                {
+                    Canvas c = soldierIndicatorInstance.AddComponent<Canvas>();
+                    c.renderMode = RenderMode.WorldSpace;
+                    c.sortingOrder = soldierIndicatorSortingOrder;
+                    soldierIndicatorInstance.AddComponent<UnityEngine.UI.CanvasScaler>();
+                    soldierIndicatorInstance.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+                }
+                ApplySoldierIndicatorSortingOrder(soldierIndicatorInstance);
+                soldierIndicatorInstance.SetActive(false);
+                return;
+            }
+
+            // Procedurally create a World Space Downward Arrow Indicator Canvas
+            GameObject canvasObj = new GameObject("SelectedSoldierIndicatorCanvas");
+            Canvas canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.sortingOrder = soldierIndicatorSortingOrder;
+
+            canvasObj.AddComponent<UnityEngine.UI.CanvasScaler>();
+            canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+
+            RectTransform canvasRT = canvasObj.GetComponent<RectTransform>();
+            canvasRT.sizeDelta = new Vector2(60f, 60f);
+            canvasRT.localScale = new Vector3(0.012f, 0.012f, 1f);
+
+            GameObject arrowObj = new GameObject("ArrowGraphic");
+            arrowObj.transform.SetParent(canvasObj.transform, false);
+
+            if (customSoldierIndicatorSprite != null)
+            {
+                UnityEngine.UI.Image img = arrowObj.AddComponent<UnityEngine.UI.Image>();
+                img.sprite = customSoldierIndicatorSprite;
+                img.color = soldierIndicatorColor;
+            }
+            else
+            {
+                UnityEngine.UI.Text arrowText = arrowObj.AddComponent<UnityEngine.UI.Text>();
+                arrowText.text = "▼";
+                arrowText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                arrowText.fontSize = 32;
+                arrowText.fontStyle = FontStyle.Bold;
+                arrowText.alignment = TextAnchor.MiddleCenter;
+                arrowText.color = soldierIndicatorColor;
+            }
+
+            RectTransform arrowRT = arrowObj.GetComponent<RectTransform>();
+            arrowRT.anchorMin = Vector2.zero;
+            arrowRT.anchorMax = Vector2.one;
+            arrowRT.sizeDelta = Vector2.zero;
+
+            initialSoldierIndicatorScale = new Vector3(0.012f, 0.012f, 1f);
+            soldierIndicatorInstance = canvasObj;
+            ApplySoldierIndicatorSortingOrder(soldierIndicatorInstance);
+            soldierIndicatorInstance.SetActive(false);
+        }
+
+        private void ApplySoldierIndicatorSortingOrder(GameObject obj)
+        {
+            if (obj == null) return;
+
+            Canvas[] canvases = obj.GetComponentsInChildren<Canvas>(true);
+            foreach (var c in canvases)
+            {
+                c.overrideSorting = true;
+                c.sortingOrder = soldierIndicatorSortingOrder;
+                if (!string.IsNullOrEmpty(soldierIndicatorSortingLayerName)) c.sortingLayerName = soldierIndicatorSortingLayerName;
+            }
+
+            SpriteRenderer[] renderers = obj.GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var sr in renderers)
+            {
+                sr.sortingOrder = soldierIndicatorSortingOrder;
+                if (!string.IsNullOrEmpty(soldierIndicatorSortingLayerName)) sr.sortingLayerName = soldierIndicatorSortingLayerName;
+            }
+        }
+
+        private void UpdateSoldierIndicatorUIState(bool show)
+        {
+            if (!enableSoldierIndicator)
+            {
+                if (soldierIndicatorInstance != null) soldierIndicatorInstance.SetActive(false);
+                return;
+            }
+
+            EnsureSoldierIndicatorUIInitialized();
+            if (soldierIndicatorInstance == null) return;
+
+            soldierIndicatorInstance.SetActive(show);
+
+            if (show && activeSoldier != null)
+            {
+                // Smooth bobbing float animation
+                float bob = Mathf.Sin(Time.time * soldierIndicatorBobSpeed) * soldierIndicatorBobAmount;
+                Vector3 targetWorldPos = activeSoldier.transform.position + soldierIndicatorOffset + new Vector3(0f, bob, 0f);
+
+                if (sceneSoldierIndicatorUIElement != null && mainCamera != null)
+                {
+                    Vector3 screenPos = mainCamera.WorldToScreenPoint(targetWorldPos);
+                    sceneSoldierIndicatorUIElement.position = screenPos;
+                }
+                else
+                {
+                    soldierIndicatorInstance.transform.position = targetWorldPos;
                 }
             }
         }
