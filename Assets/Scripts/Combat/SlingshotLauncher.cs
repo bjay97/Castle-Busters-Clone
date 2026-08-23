@@ -18,7 +18,7 @@ namespace CastleBusters.Combat
         public bool IsDragging => isDragging;
 
         [Header("Aim Cancel Config & Customization")]
-        public Vector3 cancelPositionOffset = new Vector3(0f, 2.3f, 0f); // Position of cancel button above soldier
+        public Vector3 cancelPositionOffset = Vector3.zero; // Position offset of cancel button relative to soldier (Default: directly on player Vector3.zero)
         public float cancelZoneRadius = 1.3f; // Distance from cancel button center to trigger cancel state
         public GameObject customCancelUIPrefab; // Optional custom UI prefab (instantiated in world space)
         public RectTransform sceneCancelUIElement; // Optional Canvas UI element already in your UI hierarchy
@@ -33,6 +33,8 @@ namespace CastleBusters.Combat
         public string cancelHoverText = "RELEASE TO CANCEL";
         public float cancelNormalScale = 1.0f;
         public float cancelHoverScale = 1.3f;
+        public string cancelSortingLayerName = "Default";
+        public int cancelSortingOrder = 600; // High sorting order (600) so cancel button renders on top of soldier sprite and castle
         [Header("Aim Drag Handle UI Config")]
         public bool enablePointerDragHandle = true; // Enables cursor drag handle button while aiming
         public GameObject customPointerHandlePrefab; // Optional custom prefab for mouse cursor handle (instantiated in world space)
@@ -467,6 +469,7 @@ namespace CastleBusters.Combat
                 if (cancelBgImage == null) cancelBgImage = cancelUIInstance.GetComponentInChildren<UnityEngine.UI.Image>();
                 cancelText = cancelUIInstance.GetComponent<UnityEngine.UI.Text>();
                 if (cancelText == null) cancelText = cancelUIInstance.GetComponentInChildren<UnityEngine.UI.Text>();
+                ApplyCancelSortingOrder(cancelUIInstance);
                 return;
             }
 
@@ -495,6 +498,7 @@ namespace CastleBusters.Combat
                 if (cancelBgImage == null) cancelBgImage = cancelUIInstance.GetComponentInChildren<UnityEngine.UI.Image>();
                 cancelText = cancelUIInstance.GetComponent<UnityEngine.UI.Text>();
                 if (cancelText == null) cancelText = cancelUIInstance.GetComponentInChildren<UnityEngine.UI.Text>();
+                ApplyCancelSortingOrder(cancelUIInstance);
                 return;
             }
 
@@ -544,7 +548,28 @@ namespace CastleBusters.Combat
             initialCancelUIScale = new Vector3(0.012f, 0.012f, 1f);
             cancelCanvasGroup = canvasObj.AddComponent<CanvasGroup>();
             cancelUIInstance = canvasObj;
+            ApplyCancelSortingOrder(cancelUIInstance);
             cancelUIInstance.SetActive(false);
+        }
+
+        private void ApplyCancelSortingOrder(GameObject obj)
+        {
+            if (obj == null) return;
+
+            Canvas[] canvases = obj.GetComponentsInChildren<Canvas>(true);
+            foreach (var c in canvases)
+            {
+                c.overrideSorting = true;
+                c.sortingOrder = cancelSortingOrder;
+                if (!string.IsNullOrEmpty(cancelSortingLayerName)) c.sortingLayerName = cancelSortingLayerName;
+            }
+
+            SpriteRenderer[] renderers = obj.GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var sr in renderers)
+            {
+                sr.sortingOrder = cancelSortingOrder;
+                if (!string.IsNullOrEmpty(cancelSortingLayerName)) sr.sortingLayerName = cancelSortingLayerName;
+            }
         }
 
         private void UpdateCancelUIState(bool show, bool isHovering, Vector3 soldierPos)

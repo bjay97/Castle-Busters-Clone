@@ -8,6 +8,7 @@ namespace CastleBusters.Combat
         public bool useDirectionalPointer = true; // True: Use custom decorative UI pointer; False: Classic parabola LineRenderer
 
         [Header("Decorative Directional Pointer Config")]
+        public Vector3 pointerPositionOffset = new Vector3(0.6f, 0.6f, 0f); // Position offset relative to soldier (Default: Top Right (0.6, 0.6, 0))
         public GameObject customDirectionalPrefab; // Custom UI or World prefab for decorative pointer line
         public Sprite customDirectionalSprite; // Optional custom sprite/icon for pointer line
         public Color pointerColor = new Color(1f, 0.85f, 0.2f, 0.9f); // Sleek gold decorative line color
@@ -130,7 +131,7 @@ namespace CastleBusters.Combat
                 if (pointerInstance != null)
                 {
                     pointerInstance.SetActive(true);
-                    pointerInstance.transform.position = startPosition;
+                    pointerInstance.transform.position = (Vector3)startPosition + pointerPositionOffset;
 
                     // Calculate direction angle pointing towards launch trajectory
                     float angle = Mathf.Atan2(launchVelocity.y, launchVelocity.x) * Mathf.Rad2Deg;
