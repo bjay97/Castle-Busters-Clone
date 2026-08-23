@@ -33,6 +33,15 @@ namespace CastleBusters.Combat
         public string cancelHoverText = "RELEASE TO CANCEL";
         public float cancelNormalScale = 1.0f;
         public float cancelHoverScale = 1.3f;
+        [Header("Aim Drag Handle UI Config")]
+        public bool enablePointerDragHandle = true; // Enables cursor drag handle button while aiming
+        public GameObject customPointerHandlePrefab; // Optional custom prefab for mouse cursor handle (instantiated in world space)
+        public RectTransform scenePointerHandleUIElement; // Optional Canvas UI element already in your UI hierarchy
+        public Sprite customPointerHandleSprite; // Optional custom sprite/icon for mouse drag handle
+        public Color pointerHandleColor = new Color(0.38f, 0.38f, 0.42f, 0.88f); // Sleek grey button color
+        public float pointerHandleScale = 1.0f; // Scale multiplier for drag handle button
+        public string pointerSortingLayerName = "Default"; // Sorting layer name
+        public int pointerSortingOrder = 500; // High sorting order (500) so pointer renders on top of castle interior and facade
 
         public event System.Action<bool, bool> OnAimCancelStateChanged; // Event fired when aiming state changes (isAiming, isHoveringCancel)
 
@@ -42,6 +51,9 @@ namespace CastleBusters.Combat
         private UnityEngine.UI.Text cancelText;
         private bool isHoveringCancelZone = false;
         private Vector3 initialCancelUIScale = Vector3.one;
+
+        private GameObject pointerHandleInstance;
+        private Vector3 initialPointerHandleScale = Vector3.one;
 
         private bool isDragging = false;
         private Vector2 dragStartPosition;
@@ -237,6 +249,7 @@ namespace CastleBusters.Combat
                 isHoveringCancelZone = (distToCancel <= cancelZoneRadius);
 
                 UpdateCancelUIState(true, isHoveringCancelZone, dragStartPosition);
+                UpdatePointerHandleUIState(true, mouseWorldPos);
 
                 if (dragVector.magnitude > maxDragDistance)
                 {
@@ -276,6 +289,7 @@ namespace CastleBusters.Combat
                 {
                     isDragging = false;
                     UpdateCancelUIState(false, false, dragStartPosition);
+                    UpdatePointerHandleUIState(false, Vector2.zero);
                     if (trajectoryPredictor != null) trajectoryPredictor.HideTrajectory();
 
                     // Restore 100% full opaque facade when aim release occurs
@@ -305,6 +319,7 @@ namespace CastleBusters.Combat
             else
             {
                 UpdateCancelUIState(false, false, Vector2.zero);
+                UpdatePointerHandleUIState(false, Vector2.zero);
             }
         }
 
@@ -406,6 +421,7 @@ namespace CastleBusters.Combat
             isDragging = false;
             if (trajectoryPredictor != null) trajectoryPredictor.HideTrajectory();
             UpdateCancelUIState(false, false, Vector2.zero);
+            UpdatePointerHandleUIState(false, Vector2.zero);
             if (GameManager.Instance != null && GameManager.Instance.player1Castle != null)
             {
                 CastleFacadeVisibility vis = GameManager.Instance.player1Castle.GetComponentInChildren<CastleFacadeVisibility>();
@@ -555,6 +571,117 @@ namespace CastleBusters.Combat
                     string targetText = isHovering ? cancelHoverText : cancelNormalText;
                     cancelText.text = targetText;
                     cancelText.fontSize = isHovering ? 20 : 24;
+                }
+            }
+        }
+
+        private void EnsurePointerHandleUIInitialized()
+        {
+            if (scenePointerHandleUIElement != null)
+            {
+                pointerHandleInstance = scenePointerHandleUIElement.gameObject;
+                return;
+            }
+
+            if (pointerHandleInstance != null) return;
+
+            if (customPointerHandlePrefab != null)
+            {
+                pointerHandleInstance = Instantiate(customPointerHandlePrefab);
+                initialPointerHandleScale = customPointerHandlePrefab.transform.localScale;
+                if (initialPointerHandleScale == Vector3.zero) initialPointerHandleScale = Vector3.one;
+
+                if (pointerHandleInstance.GetComponent<RectTransform>() != null && pointerHandleInstance.GetComponent<Canvas>() == null && pointerHandleInstance.GetComponentInParent<Canvas>() == null)
+                {
+                    Canvas c = pointerHandleInstance.AddComponent<Canvas>();
+                    c.renderMode = RenderMode.WorldSpace;
+                    c.sortingOrder = pointerSortingOrder;
+                    pointerHandleInstance.AddComponent<UnityEngine.UI.CanvasScaler>();
+                    pointerHandleInstance.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+                }
+                ApplyPointerSortingOrder(pointerHandleInstance);
+                pointerHandleInstance.SetActive(false);
+                return;
+            }
+
+            // Procedurally create a World Space Grey Cursor Handle Disc Canvas
+            GameObject canvasObj = new GameObject("AimPointerHandleCanvas");
+            Canvas canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.sortingOrder = 250; // Render above everything
+
+            canvasObj.AddComponent<UnityEngine.UI.CanvasScaler>();
+            canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+
+            RectTransform canvasRT = canvasObj.GetComponent<RectTransform>();
+            canvasRT.sizeDelta = new Vector2(70f, 70f);
+            canvasRT.localScale = new Vector3(0.012f, 0.012f, 1f);
+
+            GameObject bgObj = new GameObject("HandleBG");
+            bgObj.transform.SetParent(canvasObj.transform, false);
+
+            UnityEngine.UI.Image img = bgObj.AddComponent<UnityEngine.UI.Image>();
+            if (customPointerHandleSprite != null) img.sprite = customPointerHandleSprite;
+            img.color = pointerHandleColor;
+
+            RectTransform bgRT = bgObj.GetComponent<RectTransform>();
+            bgRT.anchorMin = Vector2.zero;
+            bgRT.anchorMax = Vector2.one;
+            bgRT.sizeDelta = Vector2.zero;
+
+            initialPointerHandleScale = new Vector3(0.012f, 0.012f, 1f);
+            pointerHandleInstance = canvasObj;
+            ApplyPointerSortingOrder(pointerHandleInstance);
+            pointerHandleInstance.SetActive(false);
+        }
+
+        private void ApplyPointerSortingOrder(GameObject obj)
+        {
+            if (obj == null) return;
+
+            Canvas[] canvases = obj.GetComponentsInChildren<Canvas>(true);
+            foreach (var c in canvases)
+            {
+                c.overrideSorting = true;
+                c.sortingOrder = pointerSortingOrder;
+                if (!string.IsNullOrEmpty(pointerSortingLayerName)) c.sortingLayerName = pointerSortingLayerName;
+            }
+
+            SpriteRenderer[] renderers = obj.GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var sr in renderers)
+            {
+                sr.sortingOrder = pointerSortingOrder;
+                if (!string.IsNullOrEmpty(pointerSortingLayerName)) sr.sortingLayerName = pointerSortingLayerName;
+            }
+        }
+
+        private void UpdatePointerHandleUIState(bool show, Vector3 mouseWorldPos)
+        {
+            if (!enablePointerDragHandle)
+            {
+                if (pointerHandleInstance != null) pointerHandleInstance.SetActive(false);
+                return;
+            }
+
+            EnsurePointerHandleUIInitialized();
+            if (pointerHandleInstance == null) return;
+
+            pointerHandleInstance.SetActive(show);
+
+            if (show)
+            {
+                if (scenePointerHandleUIElement != null)
+                {
+                    // Screen Space UI positioning for elements inside a Canvas UI
+                    scenePointerHandleUIElement.position = GetPointerScreenPosition();
+                }
+                else
+                {
+                    // World Space UI positioning in 1:1 lockstep with cursor
+                    pointerHandleInstance.transform.position = mouseWorldPos;
+
+                    Vector3 targetScale = new Vector3(initialPointerHandleScale.x * pointerHandleScale, initialPointerHandleScale.y * pointerHandleScale, initialPointerHandleScale.z);
+                    pointerHandleInstance.transform.localScale = targetScale;
                 }
             }
         }
