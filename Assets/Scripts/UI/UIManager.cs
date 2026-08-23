@@ -232,7 +232,7 @@ namespace CastleBusters.UI
         private void UpdateRoundUI(int current, int max)
         {
             EnsureRoundAndTimerUI();
-            string msg = $"Round {current}/{max}";
+            string msg = $"{current}/{max}";
             if (roundText != null) roundText.text = msg;
             if (roundTextTMP != null) roundTextTMP.text = msg;
         }
