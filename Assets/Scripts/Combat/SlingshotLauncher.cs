@@ -44,6 +44,7 @@ namespace CastleBusters.Combat
         public int pointerSortingOrder = 500; // High sorting order (500) so pointer renders on top of castle interior and facade
 
         public event System.Action<bool, bool> OnAimCancelStateChanged; // Event fired when aiming state changes (isAiming, isHoveringCancel)
+        public event System.Action<bool, float, float> OnAimingStatsChanged; // Event fired when aiming stats update (isAiming, powerPercent, angleDegrees)
 
         private GameObject cancelUIInstance;
         private CanvasGroup cancelCanvasGroup;
@@ -275,6 +276,16 @@ namespace CastleBusters.Combat
                     CameraController.Instance.UpdateDynamicAiming(dragRatio);
                 }
 
+                // Calculate real-time Power Percentage and Trajectory Angle
+                float powerPercent = Mathf.Clamp01(dragRatio) * 100f;
+                float launchAngle = Mathf.Atan2(launchVelocity.y, launchVelocity.x) * Mathf.Rad2Deg;
+
+                OnAimingStatsChanged?.Invoke(true, powerPercent, launchAngle);
+                if (CastleBusters.UI.UIManager.Instance != null)
+                {
+                    CastleBusters.UI.UIManager.Instance.UpdateAimingStatsUI(true, powerPercent, launchAngle);
+                }
+
                 // Show trajectory ONLY if NOT hovering over the Cancel Zone!
                 if (!isHoveringCancelZone && trajectoryPredictor != null && dragVector.magnitude > 0.1f)
                 {
@@ -291,6 +302,12 @@ namespace CastleBusters.Combat
                     UpdateCancelUIState(false, false, dragStartPosition);
                     UpdatePointerHandleUIState(false, Vector2.zero);
                     if (trajectoryPredictor != null) trajectoryPredictor.HideTrajectory();
+
+                    OnAimingStatsChanged?.Invoke(false, 0f, 0f);
+                    if (CastleBusters.UI.UIManager.Instance != null)
+                    {
+                        CastleBusters.UI.UIManager.Instance.UpdateAimingStatsUI(false, 0f, 0f);
+                    }
 
                     // Restore 100% full opaque facade when aim release occurs
                     if (GameManager.Instance != null && GameManager.Instance.player1Castle != null)
@@ -320,6 +337,11 @@ namespace CastleBusters.Combat
             {
                 UpdateCancelUIState(false, false, Vector2.zero);
                 UpdatePointerHandleUIState(false, Vector2.zero);
+                OnAimingStatsChanged?.Invoke(false, 0f, 0f);
+                if (CastleBusters.UI.UIManager.Instance != null)
+                {
+                    CastleBusters.UI.UIManager.Instance.UpdateAimingStatsUI(false, 0f, 0f);
+                }
             }
         }
 
@@ -422,6 +444,11 @@ namespace CastleBusters.Combat
             if (trajectoryPredictor != null) trajectoryPredictor.HideTrajectory();
             UpdateCancelUIState(false, false, Vector2.zero);
             UpdatePointerHandleUIState(false, Vector2.zero);
+            OnAimingStatsChanged?.Invoke(false, 0f, 0f);
+            if (CastleBusters.UI.UIManager.Instance != null)
+            {
+                CastleBusters.UI.UIManager.Instance.UpdateAimingStatsUI(false, 0f, 0f);
+            }
             if (GameManager.Instance != null && GameManager.Instance.player1Castle != null)
             {
                 CastleFacadeVisibility vis = GameManager.Instance.player1Castle.GetComponentInChildren<CastleFacadeVisibility>();

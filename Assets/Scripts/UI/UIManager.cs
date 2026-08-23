@@ -10,6 +10,21 @@ namespace CastleBusters.UI
 {
     public class UIManager : MonoBehaviour
     {
+        public static UIManager Instance { get; private set; }
+
+        private void Awake()
+        {
+            if (Instance == null)
+            {
+                Instance = this;
+            }
+            else if (Instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+        }
+
         [Header("Turn & Action HUD (Supports Legacy Text or TextMeshPro)")]
         public Text turnText;
         public TextMeshProUGUI turnTextTMP;
@@ -51,6 +66,15 @@ namespace CastleBusters.UI
         public Image fuelBarFill;
         public Text fuelText;
         public TextMeshProUGUI fuelTextTMP;
+
+        [Header("Aiming Power & Angle HUD Panels")]
+        public GameObject powerPanel; // Panel containing power text / percentage fill bar
+        public GameObject anglePanel; // Panel containing trajectory angle text
+        public Text powerText;
+        public TextMeshProUGUI powerTextTMP;
+        public Image powerFillImage; // Optional power percentage fill bar Image
+        public Text angleText;
+        public TextMeshProUGUI angleTextTMP;
 
         [Header("Match Loading Overlay")]
         public GameObject loadingPanel;
@@ -958,6 +982,27 @@ namespace CastleBusters.UI
             {
                 GameManager.Instance.RestartGame();
             }
+        }
+
+        public void UpdateAimingStatsUI(bool isAiming, float powerPercent, float angleDegrees)
+        {
+            if (powerPanel != null) powerPanel.SetActive(isAiming);
+            if (anglePanel != null) anglePanel.SetActive(isAiming);
+
+            if (!isAiming) return;
+
+            int roundedPower = Mathf.Clamp(Mathf.RoundToInt(powerPercent), 0, 100);
+            int roundedAngle = Mathf.RoundToInt(angleDegrees);
+
+            string pwrString = $"{roundedPower}%";
+            if (powerText != null) powerText.text = pwrString;
+            if (powerTextTMP != null) powerTextTMP.text = pwrString;
+
+            if (powerFillImage != null) powerFillImage.fillAmount = powerPercent / 100f;
+
+            string angString = $"{roundedAngle}°";
+            if (angleText != null) angleText.text = angString;
+            if (angleTextTMP != null) angleTextTMP.text = angString;
         }
     }
 }
