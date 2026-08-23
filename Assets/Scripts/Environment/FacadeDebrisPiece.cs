@@ -14,7 +14,7 @@ namespace CastleBusters.Environment
         private Color initialColor;
 
         public static int activeDebrisCount = 0;
-        public static readonly int maxActiveDebrisCount = 20;
+        public static readonly int maxActiveDebrisCount = 80;
 
         private void OnEnable()
         {

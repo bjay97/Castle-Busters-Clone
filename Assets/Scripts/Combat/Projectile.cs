@@ -27,6 +27,10 @@ namespace CastleBusters.Combat
         [Range(-1f, 1f)]
         public float customScorchDarkening = -1f; // -1 to use Facade default; 0 to 1 to override soot darkness
 
+        [Header("Custom Debris Config (Drag pre-drawn PNG chip sprites here)")]
+        public Sprite[] customDebrisSprites; // Optional pre-rendered/hand-drawn chip sprites for this projectile type
+        public float debrisScaleMultiplier = 1.0f; // Multiplier for debris size spawned by this missile type (e.g. 1.0 for Heavy, 0.35 for Salvo)
+
         [Header("Crater Sizing & Damage Coupling Mode")]
         public bool useMaskNativeSize = false; // True: Radius & damage derived from Crater Mask shape asset dimensions; False: Uses explicit explosionRadius
         public float craterScaleMultiplier = 1.0f; // Scale multiplier applied to mask asset size when useMaskNativeSize is true
@@ -197,7 +201,7 @@ namespace CastleBusters.Combat
                     {
                         continue; // Skip carving friendly castle facade!
                     }
-                    builder.CarveFacadeImpact(impactPoint, radius, customCraterShape, useRandomRotationForShape, customScorchDarkening);
+                    builder.CarveFacadeImpact(impactPoint, radius, customCraterShape, useRandomRotationForShape, customScorchDarkening, debrisScaleMultiplier, customDebrisSprites);
                 }
             }
 

@@ -173,7 +173,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9bfe0c554c83f8c4fae2122677f666a2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CastleBusters.Combat.SalvoSubMissile
-  directDamageMultiplier: 0.1
+  directDamageMultiplier: 0.5
   explosionRadius: 0.2
   splashDamage: 1
   maxLifetime: 8
@@ -183,6 +183,8 @@ MonoBehaviour:
   customCraterShape: {fileID: 2800000, guid: a347cb9511a8fce4eac9f0581def0792, type: 3}
   useRandomRotationForShape: 1
   customScorchDarkening: -1
+  customDebrisSprites: []
+  debrisScaleMultiplier: 1
   useMaskNativeSize: 0
   craterScaleMultiplier: 1
   damagePerCraterAreaUnit: 10
