@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using CastleBusters.Core;
 
@@ -28,7 +29,20 @@ namespace CastleBusters.Environment
         [Range(0f, 1f)] public float maxMoveVolume = 0.8f; // Maximum volume when moving
         public float fadeSpeed = 4.0f; // Speed of smooth volume fade in/out (higher = faster fade)
 
+        [Header("Vehicle Engine Juice & Dynamics")]
+        public Transform chassisTransform; // Optional: Drag visual castle container transform (holds facade, interior, soldiers)
+        public bool enableEngineJuice = true;
+        public float idleRumbleAmount = 0.035f; // Upward idle engine vibration amplitude
+        public float idleRumbleFrequency = 22f; // Engine idle chug frequency
+        public float accelerationLeanAngle = 4.0f; // Chassis tilt angle when accelerating / moving
+        public float drivingBobAmount = 0.08f; // Chassis vertical bounce when driving over ground
+        public float drivingBobFrequency = 26f; // Tread/wheel bump frequency
+        public float chassisDampingSpeed = 10f; // Smoothing speed for tilt & bobbing
+
         private bool isMovingThisFrame = false;
+        private float currentMoveDir = 0f;
+        private float currentLeanAngle = 0f;
+        private float currentVerticalOffset = 0f;
 
         private Castle castle;
         private bool isMyTurn = false;
@@ -51,6 +65,7 @@ namespace CastleBusters.Environment
         private void LateUpdate()
         {
             UpdateEngineAudio();
+            UpdateVehicleJuice();
             isMovingThisFrame = false;
         }
 
@@ -74,6 +89,57 @@ namespace CastleBusters.Environment
                 TurnManager.Instance.OnTurnChanged += HandleTurnChanged;
                 HandleTurnChanged(TurnManager.Instance.activePlayer);
             }
+
+            SetupUnifiedVisualContainer();
+        }
+
+        private void SetupUnifiedVisualContainer()
+        {
+            if (chassisTransform != null) return;
+
+            // Check if a VisualContainer child already exists
+            Transform existingContainer = transform.Find("VisualContainer");
+            if (existingContainer != null)
+            {
+                chassisTransform = existingContainer;
+                return;
+            }
+
+            // Create a new VisualContainer child at (0,0,0) to hold all visual elements together
+            GameObject containerObj = new GameObject("VisualContainer");
+            containerObj.transform.SetParent(transform, false);
+            containerObj.transform.localPosition = Vector3.zero;
+            containerObj.transform.localRotation = Quaternion.identity;
+            containerObj.transform.localScale = Vector3.one;
+
+            List<Transform> childrenToMove = new List<Transform>();
+            for (int i = 0; i < transform.childCount; i++)
+            {
+                Transform child = transform.GetChild(i);
+                if (child == containerObj.transform) continue;
+
+                // Move visual children into container (Skip wheel anchors if assigned in wheels array)
+                bool isWheel = false;
+                if (wheels != null)
+                {
+                    foreach (var w in wheels)
+                    {
+                        if (w == child) { isWheel = true; break; }
+                    }
+                }
+
+                if (!isWheel)
+                {
+                    childrenToMove.Add(child);
+                }
+            }
+
+            foreach (var child in childrenToMove)
+            {
+                child.SetParent(containerObj.transform, true);
+            }
+
+            chassisTransform = containerObj.transform;
         }
 
         private void OnDestroy()
@@ -95,7 +161,6 @@ namespace CastleBusters.Environment
 
             if (isNewRound)
             {
-                // Reset fuel ONLY at the start of a new round, NOT between shot 1 and shot 2!
                 ResetFuel();
             }
         }
@@ -118,13 +183,12 @@ namespace CastleBusters.Environment
         {
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
             if (!isMyTurn || castle == null) return;
-            if (castle.ownerSide == PlayerSide.Player2) return; // Player 2 AI handled separately or by bot
+            if (castle.ownerSide == PlayerSide.Player2) return;
 
             float horizontalInput = uiInputDirection;
 
             if (Mathf.Abs(horizontalInput) < 0.01f)
             {
-                // Support Keyboard A/D fallback
 #if ENABLE_INPUT_SYSTEM || UNITY_2020_1_OR_NEWER
                 if (UnityEngine.InputSystem.Keyboard.current != null)
                 {
@@ -157,7 +221,6 @@ namespace CastleBusters.Environment
             float effectiveMinX = minX;
             float effectiveMaxX = maxX;
 
-            // Enforce minimum separation distance from opposing castle so castles NEVER collide or touch
             if (castle != null && GameManager.Instance != null)
             {
                 if (castle.ownerSide == PlayerSide.Player1 && GameManager.Instance.player2Castle != null)
@@ -179,8 +242,8 @@ namespace CastleBusters.Environment
             if (Mathf.Abs(actualDelta) > 0.0001f)
             {
                 isMovingThisFrame = true;
+                currentMoveDir = Mathf.Sign(direction);
 
-                // Translate Castle smoothly via Rigidbody2D MovePosition to eliminate physics stutter/teleporting
                 Vector3 targetPos = new Vector3(newX, transform.position.y, transform.position.z);
                 Rigidbody2D rb = GetComponent<Rigidbody2D>();
                 if (rb != null)
@@ -192,12 +255,10 @@ namespace CastleBusters.Environment
                     transform.position = targetPos;
                 }
 
-                // Consume Fuel
                 float fuelUsed = fuelConsumptionRate * Time.deltaTime;
                 currentFuel = Mathf.Max(0f, currentFuel - fuelUsed);
                 OnFuelChanged?.Invoke(currentFuel, maxFuel);
 
-                // Rotate Wheels visually
                 RotateWheels(direction);
             }
         }
@@ -243,6 +304,44 @@ namespace CastleBusters.Environment
             {
                 moveAudioSource.Stop();
             }
+        }
+
+        private void UpdateVehicleJuice()
+        {
+            if (!enableEngineJuice || chassisTransform == null) return;
+
+            float targetLean = 0f;
+            float targetYOffset = 0f;
+
+            if (isMovingThisFrame)
+            {
+                // Torque pitch: Chassis tilts when accelerating / driving
+                targetLean = -currentMoveDir * accelerationLeanAngle;
+
+                // Upward-biased driving bounce (never drops below ground line 0.0)
+                float drivingWave = (Mathf.Sin(Time.time * drivingBobFrequency) * 0.5f + 0.5f);
+                targetYOffset = drivingWave * drivingBobAmount;
+            }
+            else
+            {
+                // Upward-biased engine idle chug (never drops below ground line 0.0)
+                float idleWave = (Mathf.Sin(Time.time * idleRumbleFrequency) * 0.5f + 0.5f);
+                targetYOffset = idleWave * idleRumbleAmount;
+
+                targetLean = Mathf.Cos(Time.time * (idleRumbleFrequency * 0.4f)) * (idleRumbleAmount * 14f);
+            }
+
+            // Add slight ground clearance compensation when chassis tilts so bottom corners never dip into floor
+            float tiltClearanceCompensation = Mathf.Abs(targetLean) * 0.015f;
+            targetYOffset += tiltClearanceCompensation;
+
+            // Smoothly interpolate chassis tilt and vertical offset
+            currentLeanAngle = Mathf.Lerp(currentLeanAngle, targetLean, Time.deltaTime * chassisDampingSpeed);
+            currentVerticalOffset = Mathf.Lerp(currentVerticalOffset, targetYOffset, Time.deltaTime * chassisDampingSpeed);
+
+            // Apply visual transformation relative to local ground baseline
+            chassisTransform.localRotation = Quaternion.Euler(0f, 0f, currentLeanAngle);
+            chassisTransform.localPosition = new Vector3(0f, currentVerticalOffset, 0f);
         }
     }
 }
