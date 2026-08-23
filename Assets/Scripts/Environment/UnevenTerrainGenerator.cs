@@ -115,6 +115,9 @@ namespace CastleBusters.Environment
             Material mat = new Material(Shader.Find("Sprites/Default"));
             meshRenderer.sharedMaterial = mat;
             meshRenderer.sortingOrder = sortingOrder;
+
+            // Automatically decorate top surface contour with grass & bushes if decorator present
+            GetComponent<TerrainFoliageDecorator>()?.DecorateTerrain();
         }
     }
 }
