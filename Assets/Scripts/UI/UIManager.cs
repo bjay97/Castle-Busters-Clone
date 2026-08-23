@@ -10,6 +10,21 @@ namespace CastleBusters.UI
 {
     public class UIManager : MonoBehaviour
     {
+        public static UIManager Instance { get; private set; }
+
+        private void Awake()
+        {
+            if (Instance == null)
+            {
+                Instance = this;
+            }
+            else if (Instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+        }
+
         [Header("Turn & Action HUD (Supports Legacy Text or TextMeshPro)")]
         public Text turnText;
         public TextMeshProUGUI turnTextTMP;
@@ -51,6 +66,15 @@ namespace CastleBusters.UI
         public Image fuelBarFill;
         public Text fuelText;
         public TextMeshProUGUI fuelTextTMP;
+
+        [Header("Aiming Power & Angle HUD Panels")]
+        public GameObject powerPanel; // Panel containing power text / percentage fill bar
+        public GameObject anglePanel; // Panel containing trajectory angle text
+        public Text powerText;
+        public TextMeshProUGUI powerTextTMP;
+        public Image powerFillImage; // Optional power percentage fill bar Image
+        public Text angleText;
+        public TextMeshProUGUI angleTextTMP;
 
         [Header("Match Loading Overlay")]
         public GameObject loadingPanel;
@@ -208,7 +232,7 @@ namespace CastleBusters.UI
         private void UpdateRoundUI(int current, int max)
         {
             EnsureRoundAndTimerUI();
-            string msg = $"Round {current}/{max}";
+            string msg = $"{current}/{max}";
             if (roundText != null) roundText.text = msg;
             if (roundTextTMP != null) roundTextTMP.text = msg;
         }
@@ -610,13 +634,30 @@ namespace CastleBusters.UI
                 CameraController.Instance.SetMode(CameraMode.SoldierSelection);
             }
 
-            // Keep panel active while selecting/switching soldiers, ONLY hide when aiming starts!
+            int startActionCount = (TurnManager.Instance != null) ? TurnManager.Instance.actionsTakenThisTurn : 0;
+
+            // Keep panels active while selecting/switching soldiers; dynamically hide during aiming and restore on cancel!
             while (true)
             {
-                // Hide panels as soon as player starts aiming / pulling slingshot!
-                if (launcher != null && launcher.IsDragging)
+                // Exit selection phase ONLY when a missile is actually FIRED!
+                if (TurnManager.Instance != null && TurnManager.Instance.actionsTakenThisTurn > startActionCount)
                 {
                     break;
+                }
+
+                bool isDragging = (launcher != null && launcher.IsDragging);
+
+                // Dynamically hide panels while dragging slingshot, restore them when not dragging
+                if (soldierSelectPanel != null)
+                {
+                    bool showSelect = !isDragging;
+                    if (soldierSelectPanel.activeSelf != showSelect) soldierSelectPanel.SetActive(showSelect);
+                }
+
+                if (movementPanel != null)
+                {
+                    bool showMove = !isDragging && (p1Movement != null && p1Movement.currentFuel > 0f);
+                    if (movementPanel.activeSelf != showMove) movementPanel.SetActive(showMove);
                 }
 
                 // Dynamic driving state during soldier selection!
@@ -633,13 +674,7 @@ namespace CastleBusters.UI
                     {
                         CameraController.Instance.SetMode(CameraMode.SoldierSelection);
                     }
-                    if (p1Vis != null) p1Vis.SetFacadeVisibility(false);
-                }
-
-                // Auto hide movement panel if fuel empties during soldier selection
-                if (p1Movement != null && p1Movement.currentFuel <= 0f && movementPanel != null)
-                {
-                    movementPanel.SetActive(false);
+                    if (p1Vis != null && !isDragging) p1Vis.SetFacadeVisibility(false);
                 }
 
                 yield return null;
@@ -947,6 +982,27 @@ namespace CastleBusters.UI
             {
                 GameManager.Instance.RestartGame();
             }
+        }
+
+        public void UpdateAimingStatsUI(bool isAiming, float powerPercent, float angleDegrees)
+        {
+            if (powerPanel != null) powerPanel.SetActive(isAiming);
+            if (anglePanel != null) anglePanel.SetActive(isAiming);
+
+            if (!isAiming) return;
+
+            int roundedPower = Mathf.Clamp(Mathf.RoundToInt(powerPercent), 0, 100);
+            int roundedAngle = Mathf.RoundToInt(angleDegrees);
+
+            string pwrString = $"{roundedPower}%";
+            if (powerText != null) powerText.text = pwrString;
+            if (powerTextTMP != null) powerTextTMP.text = pwrString;
+
+            if (powerFillImage != null) powerFillImage.fillAmount = powerPercent / 100f;
+
+            string angString = $"{roundedAngle}°";
+            if (angleText != null) angleText.text = angString;
+            if (angleTextTMP != null) angleTextTMP.text = angString;
         }
     }
 }

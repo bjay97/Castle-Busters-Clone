@@ -17,6 +17,63 @@ namespace CastleBusters.Combat
         public bool isAimingAllowed = false;
         public bool IsDragging => isDragging;
 
+        [Header("Aim Cancel Config & Customization")]
+        public Vector3 cancelPositionOffset = Vector3.zero; // Position offset of cancel button relative to soldier (Default: directly on player Vector3.zero)
+        public float cancelZoneRadius = 1.3f; // Distance from cancel button center to trigger cancel state
+        public GameObject customCancelUIPrefab; // Optional custom UI prefab (instantiated in world space)
+        public RectTransform sceneCancelUIElement; // Optional Canvas UI element already in your UI hierarchy
+        public Sprite customCancelSprite; // Optional custom sprite/icon for the cancel button badge
+
+        [Header("Aim Cancel Visual Styling")]
+        [Range(0f, 1f)] public float cancelNormalAlpha = 0.45f; // Semi-transparent when aiming
+        [Range(0f, 1f)] public float cancelHoverAlpha = 1.0f; // Fully opaque when hovering cancel zone
+        public Color cancelNormalColor = new Color(0.72f, 0.11f, 0.11f, 0.88f);
+        public Color cancelHoverColor = new Color(1.0f, 0.08f, 0.18f, 1.0f);
+        public string cancelNormalText = "✕ CANCEL";
+        public string cancelHoverText = "RELEASE TO CANCEL";
+        public float cancelNormalScale = 1.0f;
+        public float cancelHoverScale = 1.3f;
+        public string cancelSortingLayerName = "Default";
+        public int cancelSortingOrder = 600; // High sorting order (600) so cancel button renders on top of soldier sprite and castle
+        [Header("Aim Drag Handle UI Config")]
+        public bool enablePointerDragHandle = true; // Enables cursor drag handle button while aiming
+        public GameObject customPointerHandlePrefab; // Optional custom prefab for mouse cursor handle (instantiated in world space)
+        public RectTransform scenePointerHandleUIElement; // Optional Canvas UI element already in your UI hierarchy
+        public Sprite customPointerHandleSprite; // Optional custom sprite/icon for mouse drag handle
+        public Color pointerHandleColor = new Color(0.38f, 0.38f, 0.42f, 0.88f); // Sleek grey button color
+        public float pointerHandleScale = 1.0f; // Scale multiplier for drag handle button
+        public string pointerSortingLayerName = "Default"; // Sorting layer name
+        public int pointerSortingOrder = 500; // High sorting order (500) so pointer renders on top of castle interior and facade
+
+        [Header("Selected Soldier Downward Arrow Indicator")]
+        public bool enableSoldierIndicator = true; // Enables downward arrow indicator over active soldier
+        public GameObject customSoldierIndicatorPrefab; // Optional custom UI prefab for selected soldier arrow
+        public RectTransform sceneSoldierIndicatorUIElement; // Optional Canvas UI element already in your UI hierarchy
+        public Sprite customSoldierIndicatorSprite; // Optional custom sprite for downward arrow badge
+        public Vector3 soldierIndicatorOffset = new Vector3(0f, 1.8f, 0f); // Default position above soldier (0, 1.8, 0)
+        public float soldierIndicatorBobAmount = 0.15f; // Vertical bobbing float height
+        public float soldierIndicatorBobSpeed = 4.0f; // Bobbing animation speed
+        public Color soldierIndicatorColor = new Color(1f, 0.88f, 0.15f, 0.95f); // Sleek gold arrow color
+        public bool hideIndicatorWhileAiming = false; // Hide arrow indicator while dragging slingshot
+        public string soldierIndicatorSortingLayerName = "Default";
+        public int soldierIndicatorSortingOrder = 550; // Render above soldiers and castle facade
+
+        public event System.Action<bool, bool> OnAimCancelStateChanged; // Event fired when aiming state changes (isAiming, isHoveringCancel)
+        public event System.Action<bool, float, float> OnAimingStatsChanged; // Event fired when aiming stats update (isAiming, powerPercent, angleDegrees)
+
+        private GameObject cancelUIInstance;
+        private CanvasGroup cancelCanvasGroup;
+        private UnityEngine.UI.Image cancelBgImage;
+        private UnityEngine.UI.Text cancelText;
+        private bool isHoveringCancelZone = false;
+        private Vector3 initialCancelUIScale = Vector3.one;
+
+        private GameObject pointerHandleInstance;
+        private Vector3 initialPointerHandleScale = Vector3.one;
+
+        private GameObject soldierIndicatorInstance;
+        private Vector3 initialSoldierIndicatorScale = Vector3.one;
+
         private bool isDragging = false;
         private Vector2 dragStartPosition;
         private Vector2 currentDragPosition;
@@ -164,6 +221,11 @@ namespace CastleBusters.Combat
         private void Update()
         {
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
+
+            bool showIndicator = (enableSoldierIndicator && activeSoldier != null && !activeSoldier.IsDead && isAimingAllowed);
+            if (hideIndicatorWhileAiming && isDragging) showIndicator = false;
+            UpdateSoldierIndicatorUIState(showIndicator);
+
             if (!isAimingAllowed) return;
             if (activeSoldier == null || activeSoldier.IsDead || activeSoldier.hasFiredThisTurn) return;
 
@@ -205,6 +267,14 @@ namespace CastleBusters.Combat
                 currentDragPosition = mouseWorldPos;
                 Vector2 dragVector = dragStartPosition - currentDragPosition;
 
+                // Check distance to Cancel Zone button hovering above soldier
+                Vector3 cancelWorldPos = (Vector3)dragStartPosition + cancelPositionOffset;
+                float distToCancel = Vector2.Distance(mouseWorldPos, cancelWorldPos);
+                isHoveringCancelZone = (distToCancel <= cancelZoneRadius);
+
+                UpdateCancelUIState(true, isHoveringCancelZone, dragStartPosition);
+                UpdatePointerHandleUIState(true, mouseWorldPos);
+
                 if (dragVector.magnitude > maxDragDistance)
                 {
                     dragVector = dragVector.normalized * maxDragDistance;
@@ -229,15 +299,38 @@ namespace CastleBusters.Combat
                     CameraController.Instance.UpdateDynamicAiming(dragRatio);
                 }
 
-                if (trajectoryPredictor != null && dragVector.magnitude > 0.1f)
+                // Calculate real-time Power Percentage and Trajectory Angle
+                float powerPercent = Mathf.Clamp01(dragRatio) * 100f;
+                float launchAngle = Mathf.Atan2(launchVelocity.y, launchVelocity.x) * Mathf.Rad2Deg;
+
+                OnAimingStatsChanged?.Invoke(true, powerPercent, launchAngle);
+                if (CastleBusters.UI.UIManager.Instance != null)
+                {
+                    CastleBusters.UI.UIManager.Instance.UpdateAimingStatsUI(true, powerPercent, launchAngle);
+                }
+
+                // Show trajectory ONLY if NOT hovering over the Cancel Zone!
+                if (!isHoveringCancelZone && trajectoryPredictor != null && dragVector.magnitude > 0.1f)
                 {
                     trajectoryPredictor.ShowTrajectory(activeSoldier.transform.position, launchVelocity);
+                }
+                else if (isHoveringCancelZone && trajectoryPredictor != null)
+                {
+                    trajectoryPredictor.HideTrajectory();
                 }
 
                 if (IsPointerReleasedThisFrame())
                 {
                     isDragging = false;
+                    UpdateCancelUIState(false, false, dragStartPosition);
+                    UpdatePointerHandleUIState(false, Vector2.zero);
                     if (trajectoryPredictor != null) trajectoryPredictor.HideTrajectory();
+
+                    OnAimingStatsChanged?.Invoke(false, 0f, 0f);
+                    if (CastleBusters.UI.UIManager.Instance != null)
+                    {
+                        CastleBusters.UI.UIManager.Instance.UpdateAimingStatsUI(false, 0f, 0f);
+                    }
 
                     // Restore 100% full opaque facade when aim release occurs
                     if (GameManager.Instance != null && GameManager.Instance.player1Castle != null)
@@ -246,10 +339,31 @@ namespace CastleBusters.Combat
                         if (vis != null) vis.SetAimingHideState(false);
                     }
 
+                    // If released over Cancel Zone -> Cancel aim completely (DO NOT FIRE!)
+                    if (isHoveringCancelZone)
+                    {
+                        isHoveringCancelZone = false;
+                        if (CameraController.Instance != null)
+                        {
+                            CameraController.Instance.SetMode(CameraMode.SoldierSelection);
+                        }
+                        return;
+                    }
+
                     if (dragVector.magnitude > 0.3f)
                     {
                         FireProjectile(launchVelocity);
                     }
+                }
+            }
+            else
+            {
+                UpdateCancelUIState(false, false, Vector2.zero);
+                UpdatePointerHandleUIState(false, Vector2.zero);
+                OnAimingStatsChanged?.Invoke(false, 0f, 0f);
+                if (CastleBusters.UI.UIManager.Instance != null)
+                {
+                    CastleBusters.UI.UIManager.Instance.UpdateAimingStatsUI(false, 0f, 0f);
                 }
             }
         }
@@ -344,6 +458,429 @@ namespace CastleBusters.Combat
             if (TurnManager.Instance != null)
             {
                 TurnManager.Instance.RegisterActionFired();
+            }
+        }
+
+        public void CancelAim()
+        {
+            isDragging = false;
+            if (trajectoryPredictor != null) trajectoryPredictor.HideTrajectory();
+            UpdateCancelUIState(false, false, Vector2.zero);
+            UpdatePointerHandleUIState(false, Vector2.zero);
+            OnAimingStatsChanged?.Invoke(false, 0f, 0f);
+            if (CastleBusters.UI.UIManager.Instance != null)
+            {
+                CastleBusters.UI.UIManager.Instance.UpdateAimingStatsUI(false, 0f, 0f);
+            }
+            if (GameManager.Instance != null && GameManager.Instance.player1Castle != null)
+            {
+                CastleFacadeVisibility vis = GameManager.Instance.player1Castle.GetComponentInChildren<CastleFacadeVisibility>();
+                if (vis != null) vis.SetAimingHideState(false);
+            }
+        }
+
+        private void EnsureCancelUIInitialized()
+        {
+            if (sceneCancelUIElement != null)
+            {
+                cancelUIInstance = sceneCancelUIElement.gameObject;
+                cancelCanvasGroup = cancelUIInstance.GetComponent<CanvasGroup>();
+                if (cancelCanvasGroup == null) cancelCanvasGroup = cancelUIInstance.AddComponent<CanvasGroup>();
+                cancelBgImage = cancelUIInstance.GetComponent<UnityEngine.UI.Image>();
+                if (cancelBgImage == null) cancelBgImage = cancelUIInstance.GetComponentInChildren<UnityEngine.UI.Image>();
+                cancelText = cancelUIInstance.GetComponent<UnityEngine.UI.Text>();
+                if (cancelText == null) cancelText = cancelUIInstance.GetComponentInChildren<UnityEngine.UI.Text>();
+                ApplyCancelSortingOrder(cancelUIInstance);
+                return;
+            }
+
+            if (cancelUIInstance != null) return;
+
+            if (customCancelUIPrefab != null)
+            {
+                cancelUIInstance = Instantiate(customCancelUIPrefab);
+                initialCancelUIScale = customCancelUIPrefab.transform.localScale;
+                if (initialCancelUIScale == Vector3.zero) initialCancelUIScale = Vector3.one;
+
+                cancelCanvasGroup = cancelUIInstance.GetComponent<CanvasGroup>();
+                if (cancelCanvasGroup == null) cancelCanvasGroup = cancelUIInstance.AddComponent<CanvasGroup>();
+
+                // Ensure UI RectTransform prefabs have a WorldSpace Canvas so they render at full size
+                if (cancelUIInstance.GetComponent<RectTransform>() != null && cancelUIInstance.GetComponent<Canvas>() == null && cancelUIInstance.GetComponentInParent<Canvas>() == null)
+                {
+                    Canvas c = cancelUIInstance.AddComponent<Canvas>();
+                    c.renderMode = RenderMode.WorldSpace;
+                    c.sortingOrder = 200;
+                    cancelUIInstance.AddComponent<UnityEngine.UI.CanvasScaler>();
+                    cancelUIInstance.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+                }
+
+                cancelBgImage = cancelUIInstance.GetComponent<UnityEngine.UI.Image>();
+                if (cancelBgImage == null) cancelBgImage = cancelUIInstance.GetComponentInChildren<UnityEngine.UI.Image>();
+                cancelText = cancelUIInstance.GetComponent<UnityEngine.UI.Text>();
+                if (cancelText == null) cancelText = cancelUIInstance.GetComponentInChildren<UnityEngine.UI.Text>();
+                ApplyCancelSortingOrder(cancelUIInstance);
+                return;
+            }
+
+            // Procedurally create a World Space Cancel Badge Canvas hovering above the soldier
+            GameObject canvasObj = new GameObject("AimCancelCanvas");
+            Canvas canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.sortingOrder = 200; // Render above soldiers and castle facade
+
+            canvasObj.AddComponent<UnityEngine.UI.CanvasScaler>();
+            canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+
+            RectTransform canvasRT = canvasObj.GetComponent<RectTransform>();
+            canvasRT.sizeDelta = new Vector2(160f, 60f);
+            canvasRT.localScale = new Vector3(0.012f, 0.012f, 1f);
+
+            // Create circular background badge
+            GameObject bgObj = new GameObject("CancelBG");
+            bgObj.transform.SetParent(canvasObj.transform, false);
+
+            cancelBgImage = bgObj.AddComponent<UnityEngine.UI.Image>();
+            if (customCancelSprite != null) cancelBgImage.sprite = customCancelSprite;
+            cancelBgImage.color = cancelNormalColor;
+
+            RectTransform bgRT = bgObj.GetComponent<RectTransform>();
+            bgRT.anchorMin = Vector2.zero;
+            bgRT.anchorMax = Vector2.one;
+            bgRT.sizeDelta = Vector2.zero;
+
+            // Create Cancel text label
+            GameObject textObj = new GameObject("CancelText");
+            textObj.transform.SetParent(bgObj.transform, false);
+
+            cancelText = textObj.AddComponent<UnityEngine.UI.Text>();
+            cancelText.text = cancelNormalText;
+            cancelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            cancelText.fontSize = 26;
+            cancelText.fontStyle = FontStyle.Bold;
+            cancelText.alignment = TextAnchor.MiddleCenter;
+            cancelText.color = Color.white;
+
+            RectTransform textRT = textObj.GetComponent<RectTransform>();
+            textRT.anchorMin = Vector2.zero;
+            textRT.anchorMax = Vector2.one;
+            textRT.sizeDelta = Vector2.zero;
+
+            initialCancelUIScale = new Vector3(0.012f, 0.012f, 1f);
+            cancelCanvasGroup = canvasObj.AddComponent<CanvasGroup>();
+            cancelUIInstance = canvasObj;
+            ApplyCancelSortingOrder(cancelUIInstance);
+            cancelUIInstance.SetActive(false);
+        }
+
+        private void ApplyCancelSortingOrder(GameObject obj)
+        {
+            if (obj == null) return;
+
+            Canvas[] canvases = obj.GetComponentsInChildren<Canvas>(true);
+            foreach (var c in canvases)
+            {
+                c.overrideSorting = true;
+                c.sortingOrder = cancelSortingOrder;
+                if (!string.IsNullOrEmpty(cancelSortingLayerName)) c.sortingLayerName = cancelSortingLayerName;
+            }
+
+            SpriteRenderer[] renderers = obj.GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var sr in renderers)
+            {
+                sr.sortingOrder = cancelSortingOrder;
+                if (!string.IsNullOrEmpty(cancelSortingLayerName)) sr.sortingLayerName = cancelSortingLayerName;
+            }
+        }
+
+        private void UpdateCancelUIState(bool show, bool isHovering, Vector3 soldierPos)
+        {
+            EnsureCancelUIInitialized();
+
+            OnAimCancelStateChanged?.Invoke(show, isHovering);
+
+            if (cancelUIInstance == null) return;
+
+            cancelUIInstance.SetActive(show);
+
+            if (show)
+            {
+                if (sceneCancelUIElement != null && mainCamera != null)
+                {
+                    // Screen Space UI positioning for scene canvas elements
+                    Vector3 screenPos = mainCamera.WorldToScreenPoint(soldierPos + cancelPositionOffset);
+                    sceneCancelUIElement.position = screenPos;
+                }
+                else
+                {
+                    // World Space UI positioning respecting custom prefab scale
+                    cancelUIInstance.transform.position = soldierPos + cancelPositionOffset;
+
+                    float multiplier = isHovering ? cancelHoverScale : cancelNormalScale;
+                    Vector3 targetScale = new Vector3(initialCancelUIScale.x * multiplier, initialCancelUIScale.y * multiplier, initialCancelUIScale.z);
+
+                    cancelUIInstance.transform.localScale = Vector3.Lerp(cancelUIInstance.transform.localScale, targetScale, Time.deltaTime * 15f);
+                }
+
+                // Smoothly fade transparency between semi-transparent aiming state and 100% solid hover state
+                if (cancelCanvasGroup != null)
+                {
+                    float targetAlpha = isHovering ? cancelHoverAlpha : cancelNormalAlpha;
+                    cancelCanvasGroup.alpha = Mathf.Lerp(cancelCanvasGroup.alpha, targetAlpha, Time.deltaTime * 15f);
+                }
+
+                if (cancelBgImage != null)
+                {
+                    Color targetColor = isHovering ? cancelHoverColor : cancelNormalColor;
+                    if (customCancelSprite != null && cancelBgImage.sprite != customCancelSprite)
+                    {
+                        cancelBgImage.sprite = customCancelSprite;
+                    }
+                    cancelBgImage.color = Color.Lerp(cancelBgImage.color, targetColor, Time.deltaTime * 15f);
+                }
+
+                if (cancelText != null)
+                {
+                    string targetText = isHovering ? cancelHoverText : cancelNormalText;
+                    cancelText.text = targetText;
+                    cancelText.fontSize = isHovering ? 20 : 24;
+                }
+            }
+        }
+
+        private void EnsurePointerHandleUIInitialized()
+        {
+            if (scenePointerHandleUIElement != null)
+            {
+                pointerHandleInstance = scenePointerHandleUIElement.gameObject;
+                return;
+            }
+
+            if (pointerHandleInstance != null) return;
+
+            if (customPointerHandlePrefab != null)
+            {
+                pointerHandleInstance = Instantiate(customPointerHandlePrefab);
+                initialPointerHandleScale = customPointerHandlePrefab.transform.localScale;
+                if (initialPointerHandleScale == Vector3.zero) initialPointerHandleScale = Vector3.one;
+
+                if (pointerHandleInstance.GetComponent<RectTransform>() != null && pointerHandleInstance.GetComponent<Canvas>() == null && pointerHandleInstance.GetComponentInParent<Canvas>() == null)
+                {
+                    Canvas c = pointerHandleInstance.AddComponent<Canvas>();
+                    c.renderMode = RenderMode.WorldSpace;
+                    c.sortingOrder = pointerSortingOrder;
+                    pointerHandleInstance.AddComponent<UnityEngine.UI.CanvasScaler>();
+                    pointerHandleInstance.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+                }
+                ApplyPointerSortingOrder(pointerHandleInstance);
+                pointerHandleInstance.SetActive(false);
+                return;
+            }
+
+            // Procedurally create a World Space Grey Cursor Handle Disc Canvas
+            GameObject canvasObj = new GameObject("AimPointerHandleCanvas");
+            Canvas canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.sortingOrder = 250; // Render above everything
+
+            canvasObj.AddComponent<UnityEngine.UI.CanvasScaler>();
+            canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+
+            RectTransform canvasRT = canvasObj.GetComponent<RectTransform>();
+            canvasRT.sizeDelta = new Vector2(70f, 70f);
+            canvasRT.localScale = new Vector3(0.012f, 0.012f, 1f);
+
+            GameObject bgObj = new GameObject("HandleBG");
+            bgObj.transform.SetParent(canvasObj.transform, false);
+
+            UnityEngine.UI.Image img = bgObj.AddComponent<UnityEngine.UI.Image>();
+            if (customPointerHandleSprite != null) img.sprite = customPointerHandleSprite;
+            img.color = pointerHandleColor;
+
+            RectTransform bgRT = bgObj.GetComponent<RectTransform>();
+            bgRT.anchorMin = Vector2.zero;
+            bgRT.anchorMax = Vector2.one;
+            bgRT.sizeDelta = Vector2.zero;
+
+            initialPointerHandleScale = new Vector3(0.012f, 0.012f, 1f);
+            pointerHandleInstance = canvasObj;
+            ApplyPointerSortingOrder(pointerHandleInstance);
+            pointerHandleInstance.SetActive(false);
+        }
+
+        private void ApplyPointerSortingOrder(GameObject obj)
+        {
+            if (obj == null) return;
+
+            Canvas[] canvases = obj.GetComponentsInChildren<Canvas>(true);
+            foreach (var c in canvases)
+            {
+                c.overrideSorting = true;
+                c.sortingOrder = pointerSortingOrder;
+                if (!string.IsNullOrEmpty(pointerSortingLayerName)) c.sortingLayerName = pointerSortingLayerName;
+            }
+
+            SpriteRenderer[] renderers = obj.GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var sr in renderers)
+            {
+                sr.sortingOrder = pointerSortingOrder;
+                if (!string.IsNullOrEmpty(pointerSortingLayerName)) sr.sortingLayerName = pointerSortingLayerName;
+            }
+        }
+
+        private void UpdatePointerHandleUIState(bool show, Vector3 mouseWorldPos)
+        {
+            if (!enablePointerDragHandle)
+            {
+                if (pointerHandleInstance != null) pointerHandleInstance.SetActive(false);
+                return;
+            }
+
+            EnsurePointerHandleUIInitialized();
+            if (pointerHandleInstance == null) return;
+
+            pointerHandleInstance.SetActive(show);
+
+            if (show)
+            {
+                if (scenePointerHandleUIElement != null)
+                {
+                    // Screen Space UI positioning for elements inside a Canvas UI
+                    scenePointerHandleUIElement.position = GetPointerScreenPosition();
+                }
+                else
+                {
+                    // World Space UI positioning in 1:1 lockstep with cursor
+                    pointerHandleInstance.transform.position = mouseWorldPos;
+
+                    Vector3 targetScale = new Vector3(initialPointerHandleScale.x * pointerHandleScale, initialPointerHandleScale.y * pointerHandleScale, initialPointerHandleScale.z);
+                    pointerHandleInstance.transform.localScale = targetScale;
+                }
+            }
+        }
+
+        private void EnsureSoldierIndicatorUIInitialized()
+        {
+            if (sceneSoldierIndicatorUIElement != null)
+            {
+                soldierIndicatorInstance = sceneSoldierIndicatorUIElement.gameObject;
+                ApplySoldierIndicatorSortingOrder(soldierIndicatorInstance);
+                return;
+            }
+
+            if (soldierIndicatorInstance != null) return;
+
+            if (customSoldierIndicatorPrefab != null)
+            {
+                soldierIndicatorInstance = Instantiate(customSoldierIndicatorPrefab);
+                initialSoldierIndicatorScale = customSoldierIndicatorPrefab.transform.localScale;
+                if (initialSoldierIndicatorScale == Vector3.zero) initialSoldierIndicatorScale = Vector3.one;
+
+                if (soldierIndicatorInstance.GetComponent<RectTransform>() != null && soldierIndicatorInstance.GetComponent<Canvas>() == null && soldierIndicatorInstance.GetComponentInParent<Canvas>() == null)
+                {
+                    Canvas c = soldierIndicatorInstance.AddComponent<Canvas>();
+                    c.renderMode = RenderMode.WorldSpace;
+                    c.sortingOrder = soldierIndicatorSortingOrder;
+                    soldierIndicatorInstance.AddComponent<UnityEngine.UI.CanvasScaler>();
+                    soldierIndicatorInstance.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+                }
+                ApplySoldierIndicatorSortingOrder(soldierIndicatorInstance);
+                soldierIndicatorInstance.SetActive(false);
+                return;
+            }
+
+            // Procedurally create a World Space Downward Arrow Indicator Canvas
+            GameObject canvasObj = new GameObject("SelectedSoldierIndicatorCanvas");
+            Canvas canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.sortingOrder = soldierIndicatorSortingOrder;
+
+            canvasObj.AddComponent<UnityEngine.UI.CanvasScaler>();
+            canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+
+            RectTransform canvasRT = canvasObj.GetComponent<RectTransform>();
+            canvasRT.sizeDelta = new Vector2(60f, 60f);
+            canvasRT.localScale = new Vector3(0.012f, 0.012f, 1f);
+
+            GameObject arrowObj = new GameObject("ArrowGraphic");
+            arrowObj.transform.SetParent(canvasObj.transform, false);
+
+            if (customSoldierIndicatorSprite != null)
+            {
+                UnityEngine.UI.Image img = arrowObj.AddComponent<UnityEngine.UI.Image>();
+                img.sprite = customSoldierIndicatorSprite;
+                img.color = soldierIndicatorColor;
+            }
+            else
+            {
+                UnityEngine.UI.Text arrowText = arrowObj.AddComponent<UnityEngine.UI.Text>();
+                arrowText.text = "▼";
+                arrowText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                arrowText.fontSize = 32;
+                arrowText.fontStyle = FontStyle.Bold;
+                arrowText.alignment = TextAnchor.MiddleCenter;
+                arrowText.color = soldierIndicatorColor;
+            }
+
+            RectTransform arrowRT = arrowObj.GetComponent<RectTransform>();
+            arrowRT.anchorMin = Vector2.zero;
+            arrowRT.anchorMax = Vector2.one;
+            arrowRT.sizeDelta = Vector2.zero;
+
+            initialSoldierIndicatorScale = new Vector3(0.012f, 0.012f, 1f);
+            soldierIndicatorInstance = canvasObj;
+            ApplySoldierIndicatorSortingOrder(soldierIndicatorInstance);
+            soldierIndicatorInstance.SetActive(false);
+        }
+
+        private void ApplySoldierIndicatorSortingOrder(GameObject obj)
+        {
+            if (obj == null) return;
+
+            Canvas[] canvases = obj.GetComponentsInChildren<Canvas>(true);
+            foreach (var c in canvases)
+            {
+                c.overrideSorting = true;
+                c.sortingOrder = soldierIndicatorSortingOrder;
+                if (!string.IsNullOrEmpty(soldierIndicatorSortingLayerName)) c.sortingLayerName = soldierIndicatorSortingLayerName;
+            }
+
+            SpriteRenderer[] renderers = obj.GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var sr in renderers)
+            {
+                sr.sortingOrder = soldierIndicatorSortingOrder;
+                if (!string.IsNullOrEmpty(soldierIndicatorSortingLayerName)) sr.sortingLayerName = soldierIndicatorSortingLayerName;
+            }
+        }
+
+        private void UpdateSoldierIndicatorUIState(bool show)
+        {
+            if (!enableSoldierIndicator)
+            {
+                if (soldierIndicatorInstance != null) soldierIndicatorInstance.SetActive(false);
+                return;
+            }
+
+            EnsureSoldierIndicatorUIInitialized();
+            if (soldierIndicatorInstance == null) return;
+
+            soldierIndicatorInstance.SetActive(show);
+
+            if (show && activeSoldier != null)
+            {
+                // Smooth bobbing float animation
+                float bob = Mathf.Sin(Time.time * soldierIndicatorBobSpeed) * soldierIndicatorBobAmount;
+                Vector3 targetWorldPos = activeSoldier.transform.position + soldierIndicatorOffset + new Vector3(0f, bob, 0f);
+
+                if (sceneSoldierIndicatorUIElement != null && mainCamera != null)
+                {
+                    Vector3 screenPos = mainCamera.WorldToScreenPoint(targetWorldPos);
+                    sceneSoldierIndicatorUIElement.position = screenPos;
+                }
+                else
+                {
+                    soldierIndicatorInstance.transform.position = targetWorldPos;
+                }
             }
         }
     }
