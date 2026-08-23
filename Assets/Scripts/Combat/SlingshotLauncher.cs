@@ -17,15 +17,31 @@ namespace CastleBusters.Combat
         public bool isAimingAllowed = false;
         public bool IsDragging => isDragging;
 
-        [Header("Aim Cancel Config")]
+        [Header("Aim Cancel Config & Customization")]
         public Vector3 cancelPositionOffset = new Vector3(0f, 2.3f, 0f); // Position of cancel button above soldier
         public float cancelZoneRadius = 1.3f; // Distance from cancel button center to trigger cancel state
-        public GameObject customCancelUIPrefab; // Optional custom UI prefab
+        public GameObject customCancelUIPrefab; // Optional custom UI prefab (instantiated in world space)
+        public RectTransform sceneCancelUIElement; // Optional Canvas UI element already in your UI hierarchy
+        public Sprite customCancelSprite; // Optional custom sprite/icon for the cancel button badge
+
+        [Header("Aim Cancel Visual Styling")]
+        [Range(0f, 1f)] public float cancelNormalAlpha = 0.45f; // Semi-transparent when aiming
+        [Range(0f, 1f)] public float cancelHoverAlpha = 1.0f; // Fully opaque when hovering cancel zone
+        public Color cancelNormalColor = new Color(0.72f, 0.11f, 0.11f, 0.88f);
+        public Color cancelHoverColor = new Color(1.0f, 0.08f, 0.18f, 1.0f);
+        public string cancelNormalText = "✕ CANCEL";
+        public string cancelHoverText = "RELEASE TO CANCEL";
+        public float cancelNormalScale = 1.0f;
+        public float cancelHoverScale = 1.3f;
+
+        public event System.Action<bool, bool> OnAimCancelStateChanged; // Event fired when aiming state changes (isAiming, isHoveringCancel)
 
         private GameObject cancelUIInstance;
+        private CanvasGroup cancelCanvasGroup;
         private UnityEngine.UI.Image cancelBgImage;
         private UnityEngine.UI.Text cancelText;
         private bool isHoveringCancelZone = false;
+        private Vector3 initialCancelUIScale = Vector3.one;
 
         private bool isDragging = false;
         private Vector2 dragStartPosition;
@@ -399,11 +415,43 @@ namespace CastleBusters.Combat
 
         private void EnsureCancelUIInitialized()
         {
+            if (sceneCancelUIElement != null)
+            {
+                cancelUIInstance = sceneCancelUIElement.gameObject;
+                cancelCanvasGroup = cancelUIInstance.GetComponent<CanvasGroup>();
+                if (cancelCanvasGroup == null) cancelCanvasGroup = cancelUIInstance.AddComponent<CanvasGroup>();
+                cancelBgImage = cancelUIInstance.GetComponent<UnityEngine.UI.Image>();
+                if (cancelBgImage == null) cancelBgImage = cancelUIInstance.GetComponentInChildren<UnityEngine.UI.Image>();
+                cancelText = cancelUIInstance.GetComponent<UnityEngine.UI.Text>();
+                if (cancelText == null) cancelText = cancelUIInstance.GetComponentInChildren<UnityEngine.UI.Text>();
+                return;
+            }
+
             if (cancelUIInstance != null) return;
 
             if (customCancelUIPrefab != null)
             {
                 cancelUIInstance = Instantiate(customCancelUIPrefab);
+                initialCancelUIScale = customCancelUIPrefab.transform.localScale;
+                if (initialCancelUIScale == Vector3.zero) initialCancelUIScale = Vector3.one;
+
+                cancelCanvasGroup = cancelUIInstance.GetComponent<CanvasGroup>();
+                if (cancelCanvasGroup == null) cancelCanvasGroup = cancelUIInstance.AddComponent<CanvasGroup>();
+
+                // Ensure UI RectTransform prefabs have a WorldSpace Canvas so they render at full size
+                if (cancelUIInstance.GetComponent<RectTransform>() != null && cancelUIInstance.GetComponent<Canvas>() == null && cancelUIInstance.GetComponentInParent<Canvas>() == null)
+                {
+                    Canvas c = cancelUIInstance.AddComponent<Canvas>();
+                    c.renderMode = RenderMode.WorldSpace;
+                    c.sortingOrder = 200;
+                    cancelUIInstance.AddComponent<UnityEngine.UI.CanvasScaler>();
+                    cancelUIInstance.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+                }
+
+                cancelBgImage = cancelUIInstance.GetComponent<UnityEngine.UI.Image>();
+                if (cancelBgImage == null) cancelBgImage = cancelUIInstance.GetComponentInChildren<UnityEngine.UI.Image>();
+                cancelText = cancelUIInstance.GetComponent<UnityEngine.UI.Text>();
+                if (cancelText == null) cancelText = cancelUIInstance.GetComponentInChildren<UnityEngine.UI.Text>();
                 return;
             }
 
@@ -425,7 +473,8 @@ namespace CastleBusters.Combat
             bgObj.transform.SetParent(canvasObj.transform, false);
 
             cancelBgImage = bgObj.AddComponent<UnityEngine.UI.Image>();
-            cancelBgImage.color = new Color(0.72f, 0.11f, 0.11f, 0.88f); // Deep red badge
+            if (customCancelSprite != null) cancelBgImage.sprite = customCancelSprite;
+            cancelBgImage.color = cancelNormalColor;
 
             RectTransform bgRT = bgObj.GetComponent<RectTransform>();
             bgRT.anchorMin = Vector2.zero;
@@ -437,7 +486,7 @@ namespace CastleBusters.Combat
             textObj.transform.SetParent(bgObj.transform, false);
 
             cancelText = textObj.AddComponent<UnityEngine.UI.Text>();
-            cancelText.text = "✕ CANCEL";
+            cancelText.text = cancelNormalText;
             cancelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             cancelText.fontSize = 26;
             cancelText.fontStyle = FontStyle.Bold;
@@ -449,6 +498,8 @@ namespace CastleBusters.Combat
             textRT.anchorMax = Vector2.one;
             textRT.sizeDelta = Vector2.zero;
 
+            initialCancelUIScale = new Vector3(0.012f, 0.012f, 1f);
+            cancelCanvasGroup = canvasObj.AddComponent<CanvasGroup>();
             cancelUIInstance = canvasObj;
             cancelUIInstance.SetActive(false);
         }
@@ -456,26 +507,53 @@ namespace CastleBusters.Combat
         private void UpdateCancelUIState(bool show, bool isHovering, Vector3 soldierPos)
         {
             EnsureCancelUIInitialized();
+
+            OnAimCancelStateChanged?.Invoke(show, isHovering);
+
             if (cancelUIInstance == null) return;
 
             cancelUIInstance.SetActive(show);
 
             if (show)
             {
-                cancelUIInstance.transform.position = soldierPos + cancelPositionOffset;
+                if (sceneCancelUIElement != null && mainCamera != null)
+                {
+                    // Screen Space UI positioning for scene canvas elements
+                    Vector3 screenPos = mainCamera.WorldToScreenPoint(soldierPos + cancelPositionOffset);
+                    sceneCancelUIElement.position = screenPos;
+                }
+                else
+                {
+                    // World Space UI positioning respecting custom prefab scale
+                    cancelUIInstance.transform.position = soldierPos + cancelPositionOffset;
 
-                float targetScale = isHovering ? 0.017f : 0.012f;
-                cancelUIInstance.transform.localScale = Vector3.Lerp(cancelUIInstance.transform.localScale, new Vector3(targetScale, targetScale, 1f), Time.deltaTime * 15f);
+                    float multiplier = isHovering ? cancelHoverScale : cancelNormalScale;
+                    Vector3 targetScale = new Vector3(initialCancelUIScale.x * multiplier, initialCancelUIScale.y * multiplier, initialCancelUIScale.z);
+
+                    cancelUIInstance.transform.localScale = Vector3.Lerp(cancelUIInstance.transform.localScale, targetScale, Time.deltaTime * 15f);
+                }
+
+                // Smoothly fade transparency between semi-transparent aiming state and 100% solid hover state
+                if (cancelCanvasGroup != null)
+                {
+                    float targetAlpha = isHovering ? cancelHoverAlpha : cancelNormalAlpha;
+                    cancelCanvasGroup.alpha = Mathf.Lerp(cancelCanvasGroup.alpha, targetAlpha, Time.deltaTime * 15f);
+                }
 
                 if (cancelBgImage != null)
                 {
-                    Color targetColor = isHovering ? new Color(1.0f, 0.08f, 0.18f, 1.0f) : new Color(0.72f, 0.11f, 0.11f, 0.88f);
+                    Color targetColor = isHovering ? cancelHoverColor : cancelNormalColor;
+                    if (customCancelSprite != null && cancelBgImage.sprite != customCancelSprite)
+                    {
+                        cancelBgImage.sprite = customCancelSprite;
+                    }
                     cancelBgImage.color = Color.Lerp(cancelBgImage.color, targetColor, Time.deltaTime * 15f);
                 }
 
                 if (cancelText != null)
                 {
-                    cancelText.text = isHovering ? "RELEASE TO CANCEL" : "✕ CANCEL";
+                    string targetText = isHovering ? cancelHoverText : cancelNormalText;
+                    cancelText.text = targetText;
                     cancelText.fontSize = isHovering ? 20 : 24;
                 }
             }
