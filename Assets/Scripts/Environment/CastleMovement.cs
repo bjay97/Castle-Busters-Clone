@@ -22,6 +22,14 @@ namespace CastleBusters.Environment
         public Transform[] wheels;
         public float wheelRotationSpeed = 180f;
 
+        [Header("Engine Movement Audio Config")]
+        public AudioSource moveAudioSource; // Drag an existing AudioSource here, OR leave empty and assign moveClip below
+        public AudioClip moveClip; // Drag tank accelerating/moving audio clip here
+        [Range(0f, 1f)] public float maxMoveVolume = 0.8f; // Maximum volume when moving
+        public float fadeSpeed = 4.0f; // Speed of smooth volume fade in/out (higher = faster fade)
+
+        private bool isMovingThisFrame = false;
+
         private Castle castle;
         private bool isMyTurn = false;
 
@@ -38,6 +46,12 @@ namespace CastleBusters.Environment
         private void FixedUpdate()
         {
             LockRotation();
+        }
+
+        private void LateUpdate()
+        {
+            UpdateEngineAudio();
+            isMovingThisFrame = false;
         }
 
         private void LockRotation()
@@ -164,6 +178,8 @@ namespace CastleBusters.Environment
 
             if (Mathf.Abs(actualDelta) > 0.0001f)
             {
+                isMovingThisFrame = true;
+
                 // Translate Castle smoothly via Rigidbody2D MovePosition to eliminate physics stutter/teleporting
                 Vector3 targetPos = new Vector3(newX, transform.position.y, transform.position.z);
                 Rigidbody2D rb = GetComponent<Rigidbody2D>();
@@ -197,6 +213,35 @@ namespace CastleBusters.Environment
                 {
                     wheel.Rotate(0f, 0f, rotationAmount);
                 }
+            }
+        }
+
+        private void UpdateEngineAudio()
+        {
+            if (moveAudioSource == null && moveClip != null)
+            {
+                moveAudioSource = gameObject.AddComponent<AudioSource>();
+                moveAudioSource.clip = moveClip;
+                moveAudioSource.loop = true;
+                moveAudioSource.playOnAwake = false;
+                moveAudioSource.spatialBlend = 0.5f;
+                moveAudioSource.volume = 0f;
+            }
+
+            if (moveAudioSource == null) return;
+
+            float targetVolume = isMovingThisFrame ? maxMoveVolume : 0f;
+
+            if (isMovingThisFrame && !moveAudioSource.isPlaying)
+            {
+                moveAudioSource.Play();
+            }
+
+            moveAudioSource.volume = Mathf.MoveTowards(moveAudioSource.volume, targetVolume, fadeSpeed * Time.deltaTime);
+
+            if (moveAudioSource.volume <= 0.001f && !isMovingThisFrame && moveAudioSource.isPlaying)
+            {
+                moveAudioSource.Stop();
             }
         }
     }
