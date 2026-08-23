@@ -610,13 +610,30 @@ namespace CastleBusters.UI
                 CameraController.Instance.SetMode(CameraMode.SoldierSelection);
             }
 
-            // Keep panel active while selecting/switching soldiers, ONLY hide when aiming starts!
+            int startActionCount = (TurnManager.Instance != null) ? TurnManager.Instance.actionsTakenThisTurn : 0;
+
+            // Keep panels active while selecting/switching soldiers; dynamically hide during aiming and restore on cancel!
             while (true)
             {
-                // Hide panels as soon as player starts aiming / pulling slingshot!
-                if (launcher != null && launcher.IsDragging)
+                // Exit selection phase ONLY when a missile is actually FIRED!
+                if (TurnManager.Instance != null && TurnManager.Instance.actionsTakenThisTurn > startActionCount)
                 {
                     break;
+                }
+
+                bool isDragging = (launcher != null && launcher.IsDragging);
+
+                // Dynamically hide panels while dragging slingshot, restore them when not dragging
+                if (soldierSelectPanel != null)
+                {
+                    bool showSelect = !isDragging;
+                    if (soldierSelectPanel.activeSelf != showSelect) soldierSelectPanel.SetActive(showSelect);
+                }
+
+                if (movementPanel != null)
+                {
+                    bool showMove = !isDragging && (p1Movement != null && p1Movement.currentFuel > 0f);
+                    if (movementPanel.activeSelf != showMove) movementPanel.SetActive(showMove);
                 }
 
                 // Dynamic driving state during soldier selection!
@@ -633,13 +650,7 @@ namespace CastleBusters.UI
                     {
                         CameraController.Instance.SetMode(CameraMode.SoldierSelection);
                     }
-                    if (p1Vis != null) p1Vis.SetFacadeVisibility(false);
-                }
-
-                // Auto hide movement panel if fuel empties during soldier selection
-                if (p1Movement != null && p1Movement.currentFuel <= 0f && movementPanel != null)
-                {
-                    movementPanel.SetActive(false);
+                    if (p1Vis != null && !isDragging) p1Vis.SetFacadeVisibility(false);
                 }
 
                 yield return null;

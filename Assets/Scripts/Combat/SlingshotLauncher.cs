@@ -17,6 +17,16 @@ namespace CastleBusters.Combat
         public bool isAimingAllowed = false;
         public bool IsDragging => isDragging;
 
+        [Header("Aim Cancel Config")]
+        public Vector3 cancelPositionOffset = new Vector3(0f, 2.3f, 0f); // Position of cancel button above soldier
+        public float cancelZoneRadius = 1.3f; // Distance from cancel button center to trigger cancel state
+        public GameObject customCancelUIPrefab; // Optional custom UI prefab
+
+        private GameObject cancelUIInstance;
+        private UnityEngine.UI.Image cancelBgImage;
+        private UnityEngine.UI.Text cancelText;
+        private bool isHoveringCancelZone = false;
+
         private bool isDragging = false;
         private Vector2 dragStartPosition;
         private Vector2 currentDragPosition;
@@ -205,6 +215,13 @@ namespace CastleBusters.Combat
                 currentDragPosition = mouseWorldPos;
                 Vector2 dragVector = dragStartPosition - currentDragPosition;
 
+                // Check distance to Cancel Zone button hovering above soldier
+                Vector3 cancelWorldPos = (Vector3)dragStartPosition + cancelPositionOffset;
+                float distToCancel = Vector2.Distance(mouseWorldPos, cancelWorldPos);
+                isHoveringCancelZone = (distToCancel <= cancelZoneRadius);
+
+                UpdateCancelUIState(true, isHoveringCancelZone, dragStartPosition);
+
                 if (dragVector.magnitude > maxDragDistance)
                 {
                     dragVector = dragVector.normalized * maxDragDistance;
@@ -229,14 +246,20 @@ namespace CastleBusters.Combat
                     CameraController.Instance.UpdateDynamicAiming(dragRatio);
                 }
 
-                if (trajectoryPredictor != null && dragVector.magnitude > 0.1f)
+                // Show trajectory ONLY if NOT hovering over the Cancel Zone!
+                if (!isHoveringCancelZone && trajectoryPredictor != null && dragVector.magnitude > 0.1f)
                 {
                     trajectoryPredictor.ShowTrajectory(activeSoldier.transform.position, launchVelocity);
+                }
+                else if (isHoveringCancelZone && trajectoryPredictor != null)
+                {
+                    trajectoryPredictor.HideTrajectory();
                 }
 
                 if (IsPointerReleasedThisFrame())
                 {
                     isDragging = false;
+                    UpdateCancelUIState(false, false, dragStartPosition);
                     if (trajectoryPredictor != null) trajectoryPredictor.HideTrajectory();
 
                     // Restore 100% full opaque facade when aim release occurs
@@ -246,11 +269,26 @@ namespace CastleBusters.Combat
                         if (vis != null) vis.SetAimingHideState(false);
                     }
 
+                    // If released over Cancel Zone -> Cancel aim completely (DO NOT FIRE!)
+                    if (isHoveringCancelZone)
+                    {
+                        isHoveringCancelZone = false;
+                        if (CameraController.Instance != null)
+                        {
+                            CameraController.Instance.SetMode(CameraMode.SoldierSelection);
+                        }
+                        return;
+                    }
+
                     if (dragVector.magnitude > 0.3f)
                     {
                         FireProjectile(launchVelocity);
                     }
                 }
+            }
+            else
+            {
+                UpdateCancelUIState(false, false, Vector2.zero);
             }
         }
 
@@ -344,6 +382,102 @@ namespace CastleBusters.Combat
             if (TurnManager.Instance != null)
             {
                 TurnManager.Instance.RegisterActionFired();
+            }
+        }
+
+        public void CancelAim()
+        {
+            isDragging = false;
+            if (trajectoryPredictor != null) trajectoryPredictor.HideTrajectory();
+            UpdateCancelUIState(false, false, Vector2.zero);
+            if (GameManager.Instance != null && GameManager.Instance.player1Castle != null)
+            {
+                CastleFacadeVisibility vis = GameManager.Instance.player1Castle.GetComponentInChildren<CastleFacadeVisibility>();
+                if (vis != null) vis.SetAimingHideState(false);
+            }
+        }
+
+        private void EnsureCancelUIInitialized()
+        {
+            if (cancelUIInstance != null) return;
+
+            if (customCancelUIPrefab != null)
+            {
+                cancelUIInstance = Instantiate(customCancelUIPrefab);
+                return;
+            }
+
+            // Procedurally create a World Space Cancel Badge Canvas hovering above the soldier
+            GameObject canvasObj = new GameObject("AimCancelCanvas");
+            Canvas canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.sortingOrder = 200; // Render above soldiers and castle facade
+
+            canvasObj.AddComponent<UnityEngine.UI.CanvasScaler>();
+            canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+
+            RectTransform canvasRT = canvasObj.GetComponent<RectTransform>();
+            canvasRT.sizeDelta = new Vector2(160f, 60f);
+            canvasRT.localScale = new Vector3(0.012f, 0.012f, 1f);
+
+            // Create circular background badge
+            GameObject bgObj = new GameObject("CancelBG");
+            bgObj.transform.SetParent(canvasObj.transform, false);
+
+            cancelBgImage = bgObj.AddComponent<UnityEngine.UI.Image>();
+            cancelBgImage.color = new Color(0.72f, 0.11f, 0.11f, 0.88f); // Deep red badge
+
+            RectTransform bgRT = bgObj.GetComponent<RectTransform>();
+            bgRT.anchorMin = Vector2.zero;
+            bgRT.anchorMax = Vector2.one;
+            bgRT.sizeDelta = Vector2.zero;
+
+            // Create Cancel text label
+            GameObject textObj = new GameObject("CancelText");
+            textObj.transform.SetParent(bgObj.transform, false);
+
+            cancelText = textObj.AddComponent<UnityEngine.UI.Text>();
+            cancelText.text = "✕ CANCEL";
+            cancelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            cancelText.fontSize = 26;
+            cancelText.fontStyle = FontStyle.Bold;
+            cancelText.alignment = TextAnchor.MiddleCenter;
+            cancelText.color = Color.white;
+
+            RectTransform textRT = textObj.GetComponent<RectTransform>();
+            textRT.anchorMin = Vector2.zero;
+            textRT.anchorMax = Vector2.one;
+            textRT.sizeDelta = Vector2.zero;
+
+            cancelUIInstance = canvasObj;
+            cancelUIInstance.SetActive(false);
+        }
+
+        private void UpdateCancelUIState(bool show, bool isHovering, Vector3 soldierPos)
+        {
+            EnsureCancelUIInitialized();
+            if (cancelUIInstance == null) return;
+
+            cancelUIInstance.SetActive(show);
+
+            if (show)
+            {
+                cancelUIInstance.transform.position = soldierPos + cancelPositionOffset;
+
+                float targetScale = isHovering ? 0.017f : 0.012f;
+                cancelUIInstance.transform.localScale = Vector3.Lerp(cancelUIInstance.transform.localScale, new Vector3(targetScale, targetScale, 1f), Time.deltaTime * 15f);
+
+                if (cancelBgImage != null)
+                {
+                    Color targetColor = isHovering ? new Color(1.0f, 0.08f, 0.18f, 1.0f) : new Color(0.72f, 0.11f, 0.11f, 0.88f);
+                    cancelBgImage.color = Color.Lerp(cancelBgImage.color, targetColor, Time.deltaTime * 15f);
+                }
+
+                if (cancelText != null)
+                {
+                    cancelText.text = isHovering ? "RELEASE TO CANCEL" : "✕ CANCEL";
+                    cancelText.fontSize = isHovering ? 20 : 24;
+                }
             }
         }
     }
