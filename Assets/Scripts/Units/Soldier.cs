@@ -43,12 +43,14 @@ namespace CastleBusters.Units
         public float launchForceMultiplier = 12f;
         public bool hasFiredThisTurn = false;
 
-        [Header("Head Aiming Rotation Controls")]
-        public Transform headTransform;         // Child head transform
+        [Header("Aiming Rotation Controls")]
+        public Transform headTransform;         // Child head transform (sibling under Soldier)
+        public Transform weaponTransform;       // Child weapon transform (sibling under Soldier)
         public float rotationSpeed = 20f;      // Interpolation smoothing speed
         public bool useInstantRotation = false; // Set to true to snap rotation instantly
         public float minAimAngle = -75f;        // Downward limit angle
         public float maxAimAngle = 85f;         // Upward limit angle
+        public float weaponAngleOffset = 0f;    // Sprite alignment offset (e.g. +90 or -90 if weapon sprite texture points up)
 
         [Header("Health")]
         public float maxHealth = 100f;
@@ -63,18 +65,26 @@ namespace CastleBusters.Units
         public event Action OnSoldierDied;
 
         private Quaternion initialHeadRot;
+        private Quaternion initialWeaponRot;
         private Quaternion targetHeadRot;
+        private Quaternion targetWeaponRot;
         private bool isAimingActive = false;
 
         private void Awake()
         {
             if (currentHealth <= 0f) currentHealth = maxHealth;
 
-            // Auto-find head transform if unassigned in Inspector
+            // Auto-find head or weapon transforms if unassigned in Inspector
             if (headTransform == null)
             {
                 Transform foundHead = transform.Find("Head") ?? transform.Find("head");
                 if (foundHead != null) headTransform = foundHead;
+            }
+
+            if (weaponTransform == null)
+            {
+                Transform foundWeapon = transform.Find("Weapon") ?? transform.Find("weapon") ?? transform.Find("Gun") ?? transform.Find("gun");
+                if (foundWeapon != null) weaponTransform = foundWeapon;
             }
 
             if (headTransform != null)
@@ -82,10 +92,16 @@ namespace CastleBusters.Units
                 initialHeadRot = headTransform.localRotation;
                 targetHeadRot = initialHeadRot;
             }
+
+            if (weaponTransform != null)
+            {
+                initialWeaponRot = weaponTransform.localRotation;
+                targetWeaponRot = initialWeaponRot;
+            }
         }
 
         /// <summary>
-        /// Smoothly rotates head towards aiming direction vector.
+        /// Smoothly rotates head and weapon towards aiming direction vector.
         /// </summary>
         public void AimAt(Vector2 aimDirection)
         {
@@ -103,10 +119,15 @@ namespace CastleBusters.Units
             {
                 targetHeadRot = Quaternion.Euler(0f, 0f, worldAngle);
             }
+
+            if (weaponTransform != null)
+            {
+                targetWeaponRot = Quaternion.Euler(0f, 0f, worldAngle + weaponAngleOffset);
+            }
         }
 
         /// <summary>
-        /// Resets head back to default resting orientation.
+        /// Resets head and weapon back to default resting orientation.
         /// </summary>
         public void ResetAim()
         {
@@ -115,19 +136,35 @@ namespace CastleBusters.Units
 
         private void LateUpdate()
         {
-            if (headTransform == null) return;
-
             // Rotate towards target aiming angle during active drag
             if (isAimingActive && !hasFiredThisTurn)
             {
-                headTransform.rotation = useInstantRotation 
-                    ? targetHeadRot 
-                    : Quaternion.Slerp(headTransform.rotation, targetHeadRot, Time.deltaTime * rotationSpeed);
+                if (headTransform != null)
+                {
+                    headTransform.rotation = useInstantRotation 
+                        ? targetHeadRot 
+                        : Quaternion.Slerp(headTransform.rotation, targetHeadRot, Time.deltaTime * rotationSpeed);
+                }
+
+                if (weaponTransform != null)
+                {
+                    weaponTransform.rotation = useInstantRotation 
+                        ? targetWeaponRot 
+                        : Quaternion.Slerp(weaponTransform.rotation, targetWeaponRot, Time.deltaTime * rotationSpeed);
+                }
             }
             else
             {
-                // Smoothly return head back to default resting local rotation
-                headTransform.localRotation = Quaternion.Slerp(headTransform.localRotation, initialHeadRot, Time.deltaTime * rotationSpeed);
+                // Smoothly return head and weapon back to default resting local rotation
+                if (headTransform != null)
+                {
+                    headTransform.localRotation = Quaternion.Slerp(headTransform.localRotation, initialHeadRot, Time.deltaTime * rotationSpeed);
+                }
+
+                if (weaponTransform != null)
+                {
+                    weaponTransform.localRotation = Quaternion.Slerp(weaponTransform.localRotation, initialWeaponRot, Time.deltaTime * rotationSpeed);
+                }
             }
         }
 
