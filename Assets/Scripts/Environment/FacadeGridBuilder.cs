@@ -40,6 +40,10 @@ namespace CastleBusters.Environment
         [Range(0f, 1f)] public float facadeDestructionVolume = 0.85f;
         public Vector2 pitchRandomRange = new Vector2(0.85f, 1.15f); // Random pitch shift for acoustic variety
 
+        [Header("Performance Debug Controls")]
+        public static bool enableFacadeCarving = true;
+        public static bool globalEnableDebris = true;
+
         [Header("Castle Interior Sync")]
         public SpriteRenderer castleInteriorRenderer; // Optional Castle Interior renderer to auto-align 1:1 with facade visual
 
@@ -457,6 +461,8 @@ namespace CastleBusters.Environment
 
         public void CarveFacadeImpact(Vector2 worldPos, float radius, UnityEngine.Object customShape = null, bool allowRandomRotation = true, float scorchDarkeningOverride = -1f, float debrisScaleMultiplier = 1.0f, Sprite[] customDebrisSprites = null)
         {
+            if (!enableFacadeCarving) return;
+
             if (dynamicFacadeTexture == null)
             {
                 EnsureFacadeVisualInitialized();
@@ -538,7 +544,7 @@ namespace CastleBusters.Environment
             CleanupFloatingTextureSections();
 
             // Spawn color-tinted facade debris chips
-            if (enableDebrisParticles)
+            if (enableDebrisParticles && globalEnableDebris)
             {
                 SpawnImpactDebris(worldPos, originalHitColor, radius, debrisScaleMultiplier, customDebrisSprites);
             }

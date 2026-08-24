@@ -9,6 +9,7 @@ namespace CastleBusters.Environment
         public Transform backWheel;
 
         [Header("Suspension Settings")]
+        public static bool enableSuspensionPhysics = true;
         public LayerMask groundLayer;
         public float raycastDistance = 2.5f;
         public float suspensionRestHeight = 0.5f;
@@ -28,6 +29,7 @@ namespace CastleBusters.Environment
 
         private void FixedUpdate()
         {
+            if (!enableSuspensionPhysics) return;
             UpdateSuspensionAndTilt();
         }
 

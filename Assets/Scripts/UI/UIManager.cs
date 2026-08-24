@@ -120,7 +120,6 @@ namespace CastleBusters.UI
             }
 
             EnsureNonBlockingPanels();
-            EnsureFPSCounterUI();
 
             if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
@@ -161,7 +160,6 @@ namespace CastleBusters.UI
         {
             // Auto bind listeners if castles registered after Start
             BindCastleHealthListeners();
-            UpdateFPSCounter();
             EnsureRoundAndTimerUI();
         }
 

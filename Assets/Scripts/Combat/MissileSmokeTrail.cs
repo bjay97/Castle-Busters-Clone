@@ -6,6 +6,7 @@ namespace CastleBusters.Combat
     public class MissileSmokeTrail : MonoBehaviour
     {
         [Header("Smoke Visual Config")]
+        public static bool globalEnableSmokeTrails = false; // Global toggle controlled by Debug Dashboard
         public Sprite smokeSprite;
         public Color startColor = new Color(0.85f, 0.85f, 0.85f, 0.7f);
         public Color endColor = new Color(0.9f, 0.9f, 0.9f, 0f);
@@ -92,32 +93,73 @@ namespace CastleBusters.Combat
             return transform.TransformPoint(localOffset);
         }
 
+        private static System.Collections.Generic.Queue<GameObject> smokePuffPool = new System.Collections.Generic.Queue<GameObject>();
+        private static Transform poolParent;
+
         private void SpawnSmokePuff()
         {
             Vector3 spawnPos = GetSpawnPosition();
-
-            GameObject puffObj = new GameObject("SmokePuff");
+            GameObject puffObj = GetPooledPuff();
             puffObj.transform.position = spawnPos;
 
             if (useRandomRotation)
             {
                 puffObj.transform.rotation = Quaternion.Euler(0f, 0f, Random.Range(0f, 360f));
             }
+            else
+            {
+                puffObj.transform.rotation = Quaternion.identity;
+            }
 
-            SpriteRenderer sr = puffObj.AddComponent<SpriteRenderer>();
+            Vector2 driftDir = useRandomDrift ? Random.insideUnitCircle.normalized * driftSpeed : Vector2.zero;
+
+            SmokePuffHandler handler = puffObj.GetComponent<SmokePuffHandler>();
+            if (handler != null)
+            {
+                handler.Activate(startScale, endScale, startColor, endColor, puffLifetime, driftDir);
+            }
+        }
+
+        private GameObject GetPooledPuff()
+        {
+            while (smokePuffPool.Count > 0)
+            {
+                GameObject obj = smokePuffPool.Dequeue();
+                if (obj != null)
+                {
+                    obj.SetActive(true);
+                    return obj;
+                }
+            }
+
+            if (poolParent == null)
+            {
+                GameObject pObj = new GameObject("SmokePuffPool");
+                poolParent = pObj.transform;
+            }
+
+            GameObject newPuff = new GameObject("SmokePuff");
+            newPuff.transform.SetParent(poolParent, false);
+
+            SpriteRenderer sr = newPuff.AddComponent<SpriteRenderer>();
             sr.sprite = smokeSprite != null ? smokeSprite : CreateDefaultSmokePuffSprite();
             sr.color = startColor;
             sr.sortingOrder = sortingOrder;
 
-            Vector2 driftDir = useRandomDrift ? Random.insideUnitCircle.normalized * driftSpeed : Vector2.zero;
+            SmokePuffHandler handler = newPuff.AddComponent<SmokePuffHandler>();
+            handler.SetPool(smokePuffPool);
 
-            SmokePuffHandler handler = puffObj.AddComponent<SmokePuffHandler>();
-            handler.startScale = startScale;
-            handler.endScale = endScale;
-            handler.startColor = startColor;
-            handler.endColor = endColor;
-            handler.puffLifetime = puffLifetime;
-            handler.driftDir = driftDir;
+            return newPuff;
+        }
+
+        public static void ClearPool()
+        {
+            smokePuffPool.Clear();
+            if (poolParent != null)
+            {
+                Destroy(poolParent.gameObject);
+                poolParent = null;
+            }
         }
 
         private void OnDrawGizmosSelected()
@@ -148,7 +190,6 @@ namespace CastleBusters.Combat
                     float dist = Mathf.Sqrt(dx * dx + dy * dy);
                     float normDist = Mathf.Clamp01(dist / maxRadius);
 
-                    // Soft radial falloff for smooth smoke cloud puff
                     float alpha = Mathf.SmoothStep(1f, 0f, normDist);
                     colors[y * size + x] = new Color(1f, 1f, 1f, alpha);
                 }
@@ -173,27 +214,62 @@ namespace CastleBusters.Combat
 
         private SpriteRenderer sr;
         private float elapsed = 0f;
+        private bool isActive = false;
+        private System.Collections.Generic.Queue<GameObject> ownerPool;
 
-        private void Start()
+        public void SetPool(System.Collections.Generic.Queue<GameObject> pool)
         {
-            sr = GetComponent<SpriteRenderer>();
-            Destroy(gameObject, Mathf.Max(0.1f, puffLifetime));
+            ownerPool = pool;
+        }
+
+        public void Activate(Vector3 startS, Vector3 endS, Color startC, Color endC, float lifetime, Vector2 drift)
+        {
+            if (sr == null) sr = GetComponent<SpriteRenderer>();
+
+            startScale = startS;
+            endScale = endS;
+            startColor = startC;
+            endColor = endC;
+            puffLifetime = lifetime;
+            driftDir = drift;
+            elapsed = 0f;
+
+            transform.localScale = startScale;
+            if (sr != null) sr.color = startColor;
+
+            isActive = true;
         }
 
         private void Update()
         {
+            if (!isActive) return;
+
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / puffLifetime);
 
-            // Smooth ease-out growth curve
-            float easeT = Mathf.Sin(t * Mathf.PI * 0.5f);
+            if (t >= 1.0f)
+            {
+                Deactivate();
+                return;
+            }
 
+            float easeT = Mathf.Sin(t * Mathf.PI * 0.5f);
             transform.localScale = Vector3.Lerp(startScale, endScale, easeT);
             transform.position += (Vector3)(driftDir * Time.deltaTime);
 
             if (sr != null)
             {
                 sr.color = Color.Lerp(startColor, endColor, t);
+            }
+        }
+
+        private void Deactivate()
+        {
+            isActive = false;
+            gameObject.SetActive(false);
+            if (ownerPool != null)
+            {
+                ownerPool.Enqueue(gameObject);
             }
         }
     }

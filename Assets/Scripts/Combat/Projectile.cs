@@ -139,6 +139,7 @@ namespace CastleBusters.Combat
         }
 
         [Header("Explosion VFX")]
+        public static bool globalEnableExplosionVFX = true;
         public GameObject explosionVFXPrefab;
 
         public void GetEffectiveExplosionRadiusAndDamage(out float effectiveRadius, out float effectiveDamage)
@@ -314,6 +315,8 @@ namespace CastleBusters.Combat
 
         public void SpawnExplosionVFX(Vector3 position)
         {
+            if (!globalEnableExplosionVFX) return;
+
             GameObject vfxPrefabToSpawn = explosionVFXPrefab;
 
             if (vfxPrefabToSpawn == null)
