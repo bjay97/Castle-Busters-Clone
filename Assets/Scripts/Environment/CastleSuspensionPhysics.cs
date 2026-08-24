@@ -53,7 +53,7 @@ namespace CastleBusters.Environment
             {
                 float targetAngle = Mathf.Atan2(terrainVector.y, terrainVector.x) * Mathf.Rad2Deg;
                 float currentAngle = transform.eulerAngles.z;
-                float newAngle = Mathf.LerpAngle(currentAngle, targetAngle, Time.deltaTime * tiltDamping);
+                float newAngle = Mathf.LerpAngle(currentAngle, targetAngle, Time.fixedDeltaTime * tiltDamping);
                 transform.rotation = Quaternion.Euler(0f, 0f, newAngle);
             }
 
@@ -71,13 +71,13 @@ namespace CastleBusters.Environment
                 float targetYOffset = Mathf.Clamp(-groundDistance, -maxDroop, maxCompression);
 
                 Vector3 targetLocalPos = baseLocalPos + new Vector3(0f, targetYOffset, 0f);
-                wheel.localPosition = Vector3.Lerp(wheel.localPosition, targetLocalPos, Time.deltaTime * suspensionDamping);
+                wheel.localPosition = Vector3.Lerp(wheel.localPosition, targetLocalPos, Time.fixedDeltaTime * suspensionDamping);
             }
             else
             {
                 // Droop fully downwards if over a deep valley/air
                 Vector3 targetLocalPos = baseLocalPos - new Vector3(0f, maxDroop, 0f);
-                wheel.localPosition = Vector3.Lerp(wheel.localPosition, targetLocalPos, Time.deltaTime * suspensionDamping);
+                wheel.localPosition = Vector3.Lerp(wheel.localPosition, targetLocalPos, Time.fixedDeltaTime * suspensionDamping);
             }
         }
 

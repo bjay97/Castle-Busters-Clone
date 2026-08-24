@@ -292,6 +292,12 @@ namespace CastleBusters.Combat
 
                 Vector2 launchVelocity = dragVector * launchForceMultiplier * projSpeedMult;
 
+                // Rotate soldier head & weapon towards trajectory line
+                if (activeSoldier != null)
+                {
+                    activeSoldier.AimAt(launchVelocity);
+                }
+
                 // Dynamically update camera zoom & X-offset based on pull distance!
                 float dragRatio = (maxDragDistance > 0f) ? (dragVector.magnitude / maxDragDistance) : 0f;
                 if (CameraController.Instance != null)
@@ -358,6 +364,11 @@ namespace CastleBusters.Combat
             }
             else
             {
+                if (activeSoldier != null)
+                {
+                    activeSoldier.ResetAim();
+                }
+
                 UpdateCancelUIState(false, false, Vector2.zero);
                 UpdatePointerHandleUIState(false, Vector2.zero);
                 OnAimingStatsChanged?.Invoke(false, 0f, 0f);
@@ -374,6 +385,7 @@ namespace CastleBusters.Combat
 
             Soldier firingSoldier = activeSoldier;
             firingSoldier.hasFiredThisTurn = true;
+            firingSoldier.ResetAim();
             activeSoldier = null;
             isAimingAllowed = false;
 
