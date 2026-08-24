@@ -52,6 +52,7 @@ namespace CastleBusters.Environment
         public string facadeSortingLayerName = "Default";
 
         private Texture2D dynamicFacadeTexture;
+        private Color32[] rawFacadePixels;
         private SpriteRenderer fullFacadeRenderer;
         private Sprite fullFacadeSprite;
 
@@ -60,14 +61,15 @@ namespace CastleBusters.Environment
 
         private void LateUpdate()
         {
-            if (isTextureDirty && dynamicFacadeTexture != null)
+            if (isTextureDirty && dynamicFacadeTexture != null && rawFacadePixels != null)
             {
                 if (needsCleanup)
                 {
                     CleanupFloatingTextureSectionsInternal();
                     needsCleanup = false;
                 }
-                dynamicFacadeTexture.Apply();
+                dynamicFacadeTexture.SetPixels32(rawFacadePixels);
+                dynamicFacadeTexture.Apply(false);
                 isTextureDirty = false;
             }
         }
@@ -305,6 +307,8 @@ namespace CastleBusters.Environment
                 dynamicFacadeTexture.SetPixels(colors);
                 dynamicFacadeTexture.Apply();
             }
+
+            rawFacadePixels = dynamicFacadeTexture.GetPixels32();
 
             GameObject fullObj = new GameObject("FullFacadeVisual");
             fullObj.transform.SetParent(transform);
@@ -745,15 +749,22 @@ namespace CastleBusters.Environment
 
             bool modified = false;
 
+            if (rawFacadePixels == null || rawFacadePixels.Length != texW * texH)
+            {
+                rawFacadePixels = dynamicFacadeTexture.GetPixels32();
+            }
+
             for (int y = minY; y <= maxY; y++)
             {
+                int rowOffset = y * texW;
                 for (int x = minX; x <= maxX; x++)
                 {
+                    int pIdx = rowOffset + x;
+                    Color32 targetCol = rawFacadePixels[pIdx];
+                    if (targetCol.a <= 5) continue;
+
                     float dx = (x - cx);
                     float dy = (y - cy);
-
-                    Color targetCol = dynamicFacadeTexture.GetPixel(x, y);
-                    if (targetCol.a <= 0f) continue;
 
                     // Pass 1: Outer Scorch Ring (Darken original RGB colors using shape-matched mask contour)
                     if (enableScorchMarks && scorchR > avgR)
@@ -778,11 +789,11 @@ namespace CastleBusters.Environment
                                 float burnFactor = sAlpha * effectiveDarkening;
                                 float darkMult = Mathf.Clamp01(1f - burnFactor);
 
-                                targetCol.r *= darkMult;
-                                targetCol.g *= darkMult;
-                                targetCol.b *= darkMult;
+                                targetCol.r = (byte)(targetCol.r * darkMult);
+                                targetCol.g = (byte)(targetCol.g * darkMult);
+                                targetCol.b = (byte)(targetCol.b * darkMult);
 
-                                dynamicFacadeTexture.SetPixel(x, y, targetCol);
+                                rawFacadePixels[pIdx] = targetCol;
                                 modified = true;
                             }
                         }
@@ -808,14 +819,15 @@ namespace CastleBusters.Environment
                         {
                             if (maskAlpha >= 0.25f)
                             {
-                                targetCol.a = 0f;
+                                targetCol.a = 0;
                             }
                             else
                             {
                                 float cutoutFactor = (maskAlpha - 0.05f) / 0.20f;
-                                targetCol.a = Mathf.Min(targetCol.a, 1f - cutoutFactor);
+                                byte newAlpha = (byte)(targetCol.a * (1f - cutoutFactor));
+                                if (newAlpha < targetCol.a) targetCol.a = newAlpha;
                             }
-                            dynamicFacadeTexture.SetPixel(x, y, targetCol);
+                            rawFacadePixels[pIdx] = targetCol;
                             modified = true;
                         }
                     }
@@ -848,10 +860,21 @@ namespace CastleBusters.Environment
             int maxY = Mathf.Clamp(Mathf.CeilToInt(cy + scorchR * 1.5f), 0, texH - 1);
 
             bool modified = false;
+
+            if (rawFacadePixels == null || rawFacadePixels.Length != texW * texH)
+            {
+                rawFacadePixels = dynamicFacadeTexture.GetPixels32();
+            }
+
             for (int y = minY; y <= maxY; y++)
             {
+                int rowOffset = y * texW;
                 for (int x = minX; x <= maxX; x++)
                 {
+                    int pIdx = rowOffset + x;
+                    Color32 col = rawFacadePixels[pIdx];
+                    if (col.a <= 5) continue;
+
                     float dx = (x - cx);
                     float dy = (y - cy);
 
@@ -868,9 +891,6 @@ namespace CastleBusters.Environment
                     float craterRadius = avgR * (1.0f + noise);
                     float outerScorchRadius = scorchR * (1.0f + noise);
 
-                    Color col = dynamicFacadeTexture.GetPixel(x, y);
-                    if (col.a <= 0f) continue;
-
                     // Scorch darkening in outer ring
                     if (enableScorchMarks && dist > craterRadius && dist <= outerScorchRadius)
                     {
@@ -878,11 +898,11 @@ namespace CastleBusters.Environment
                         float burnFactor = Mathf.Clamp01(distFactor) * effectiveDarkening;
                         float darkMult = Mathf.Clamp01(1f - burnFactor);
 
-                        col.r *= darkMult;
-                        col.g *= darkMult;
-                        col.b *= darkMult;
+                        col.r = (byte)(col.r * darkMult);
+                        col.g = (byte)(col.g * darkMult);
+                        col.b = (byte)(col.b * darkMult);
 
-                        dynamicFacadeTexture.SetPixel(x, y, col);
+                        rawFacadePixels[pIdx] = col;
                         modified = true;
                     }
 
@@ -891,14 +911,15 @@ namespace CastleBusters.Environment
                     {
                         if (dist <= craterRadius - 1.5f)
                         {
-                            col.a = 0f;
+                            col.a = 0;
                         }
                         else
                         {
                             float edgeFactor = (dist - (craterRadius - 1.5f)) / 1.5f;
-                            col.a = Mathf.Min(col.a, Mathf.Clamp01(edgeFactor));
+                            byte newAlpha = (byte)(col.a * Mathf.Clamp01(edgeFactor));
+                            if (newAlpha < col.a) col.a = newAlpha;
                         }
-                        dynamicFacadeTexture.SetPixel(x, y, col);
+                        rawFacadePixels[pIdx] = col;
                         modified = true;
                     }
                 }
@@ -945,9 +966,10 @@ namespace CastleBusters.Environment
                     bool cellHasContent = false;
                     for (int py = startPy; py <= endPy && !cellHasContent; py += 2)
                     {
+                        int rowOffset = py * texW;
                         for (int px = startPx; px <= endPx && !cellHasContent; px += 2)
                         {
-                            if (dynamicFacadeTexture.GetPixel(px, py).a > 0.05f)
+                            if (rawFacadePixels[rowOffset + px].a > 12)
                             {
                                 cellHasContent = true;
                             }
@@ -1057,13 +1079,13 @@ namespace CastleBusters.Environment
 
                         for (int py = minY; py <= maxY; py++)
                         {
+                            int rowOffset = py * texW;
                             for (int px = minX; px <= maxX; px++)
                             {
-                                Color c = dynamicFacadeTexture.GetPixel(px, py);
-                                if (c.a > 0f)
+                                int pIdx = rowOffset + px;
+                                if (rawFacadePixels[pIdx].a > 0)
                                 {
-                                    c.a = 0f;
-                                    dynamicFacadeTexture.SetPixel(px, py, c);
+                                    rawFacadePixels[pIdx].a = 0;
                                     clearedAny = true;
                                 }
                             }
