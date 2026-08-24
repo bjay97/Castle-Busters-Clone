@@ -58,9 +58,16 @@ namespace CastleBusters.Environment
 
         private bool isTextureDirty = false;
         private bool needsCleanup = false;
+        private bool needsCollapseCheck = false;
 
         private void LateUpdate()
         {
+            if (needsCollapseCheck)
+            {
+                needsCollapseCheck = false;
+                EvaluateStructuralCollapseInternal();
+            }
+
             if (isTextureDirty && dynamicFacadeTexture != null && rawFacadePixels != null)
             {
                 if (needsCleanup)
@@ -1122,9 +1129,15 @@ namespace CastleBusters.Environment
             }
         }
 
+        public void CheckStructuralCollapse(int destroyedCol, int destroyedRow)
+        {
+            if (!Application.isPlaying) return;
+            needsCollapseCheck = true;
+        }
+
         private bool isEvaluatingCollapse = false;
 
-        public void CheckStructuralCollapse(int destroyedCol, int destroyedRow)
+        private void EvaluateStructuralCollapseInternal()
         {
             if (isEvaluatingCollapse || !Application.isPlaying) return;
             isEvaluatingCollapse = true;
