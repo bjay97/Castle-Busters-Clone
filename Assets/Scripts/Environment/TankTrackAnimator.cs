@@ -20,7 +20,7 @@ namespace CastleBusters.Environment
 
         [Header("Animation Settings")]
         public float animationFps = 12f;
-        public bool lockLocalRotation = true;
+        public bool lockLocalRotation = false; // Set to false to allow CastleSuspensionPhysics cliff pitch articulation
 
         [Header("Editor Preview")]
         [Range(0, 2)]
