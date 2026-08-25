@@ -22,6 +22,7 @@ namespace CastleBusters.Environment
         [Header("Visual Feedback")]
         public Transform[] wheels;
         public float wheelRotationSpeed = 180f;
+        public TankTrackAnimator[] trackAnimators;
 
         [Header("Engine Movement Audio Config")]
         public AudioSource moveAudioSource; // Drag an existing AudioSource here, OR leave empty and assign moveClip below
@@ -66,7 +67,20 @@ namespace CastleBusters.Environment
         {
             UpdateEngineAudio();
             UpdateVehicleJuice();
+            UpdateTrackAnimators();
             isMovingThisFrame = false;
+        }
+
+        private void UpdateTrackAnimators()
+        {
+            if (trackAnimators == null) return;
+            foreach (var track in trackAnimators)
+            {
+                if (track != null)
+                {
+                    track.SetMoving(isMovingThisFrame);
+                }
+            }
         }
 
         private void LockRotation()
@@ -84,6 +98,11 @@ namespace CastleBusters.Environment
 
         private void Start()
         {
+            if (trackAnimators == null || trackAnimators.Length == 0)
+            {
+                trackAnimators = GetComponentsInChildren<TankTrackAnimator>();
+            }
+
             if (TurnManager.Instance != null)
             {
                 TurnManager.Instance.OnTurnChanged += HandleTurnChanged;
@@ -265,6 +284,12 @@ namespace CastleBusters.Environment
 
         private void RotateWheels(float direction)
         {
+            if (trackAnimators != null && trackAnimators.Length > 0)
+            {
+                // Tank tracks do not rotate visually around their center
+                return;
+            }
+
             if (wheels == null || wheels.Length == 0) return;
 
             float rotationAmount = -direction * wheelRotationSpeed * Time.deltaTime;

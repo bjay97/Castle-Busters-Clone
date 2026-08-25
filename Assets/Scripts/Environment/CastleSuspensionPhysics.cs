@@ -23,6 +23,16 @@ namespace CastleBusters.Environment
 
         private void Awake()
         {
+            if (frontWheel == null || backWheel == null)
+            {
+                var tracks = GetComponentsInChildren<TankTrackAnimator>();
+                if (tracks != null && tracks.Length > 0)
+                {
+                    if (frontWheel == null) frontWheel = tracks[0].transform;
+                    if (backWheel == null) backWheel = tracks[tracks.Length > 1 ? 1 : 0].transform;
+                }
+            }
+
             if (frontWheel != null) frontWheelBaseLocalPos = frontWheel.localPosition;
             if (backWheel != null) backWheelBaseLocalPos = backWheel.localPosition;
         }
