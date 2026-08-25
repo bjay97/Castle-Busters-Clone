@@ -13,6 +13,7 @@ namespace CastleBusters.Environment
         public LayerMask groundLayer;
         public float raycastDistance = 2.5f;
         public float suspensionRestHeight = 0.5f;
+        public float trackHeightOffset = 0.0f; // Fine-tune height offset to position track flat on ground
         public float maxDroop = 0.4f;        // Max downward droop over valleys
         public float maxCompression = 0.3f;  // Max upward compression over peaks
         public float suspensionDamping = 12f;
@@ -80,7 +81,7 @@ namespace CastleBusters.Environment
             {
                 // Calculate ground distance relative to wheel parent chassis
                 float groundDistance = hit.distance - 1.0f; // Offset raycast origin
-                float targetYOffset = Mathf.Clamp(-groundDistance, -maxDroop, maxCompression);
+                float targetYOffset = Mathf.Clamp(-groundDistance + trackHeightOffset, -maxDroop, maxCompression);
 
                 Vector3 targetLocalPos = baseLocalPos + new Vector3(0f, targetYOffset, 0f);
                 wheel.localPosition = Vector3.Lerp(wheel.localPosition, targetLocalPos, Time.deltaTime * suspensionDamping);
@@ -88,7 +89,7 @@ namespace CastleBusters.Environment
             else
             {
                 // Droop fully downwards if over a deep valley/air
-                Vector3 targetLocalPos = baseLocalPos - new Vector3(0f, maxDroop, 0f);
+                Vector3 targetLocalPos = baseLocalPos - new Vector3(0f, maxDroop, 0f) + new Vector3(0f, trackHeightOffset, 0f);
                 wheel.localPosition = Vector3.Lerp(wheel.localPosition, targetLocalPos, Time.deltaTime * suspensionDamping);
             }
         }
