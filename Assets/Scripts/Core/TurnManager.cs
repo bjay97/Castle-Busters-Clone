@@ -8,6 +8,7 @@ namespace CastleBusters.Core
     public enum GameState
     {
         Initialization,
+        IntroSequence,
         PlayerTurn,
         Aiming,
         ProjectileInFlight,

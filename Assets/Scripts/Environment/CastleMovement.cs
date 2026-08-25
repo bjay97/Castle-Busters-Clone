@@ -199,6 +199,56 @@ namespace CastleBusters.Environment
             OnFuelChanged?.Invoke(currentFuel, maxFuel);
         }
 
+        public bool IsIntroDriving { get; private set; } = false;
+        private float introTargetX;
+        private float introDriveSpeed;
+        private Action introOnComplete;
+
+        public void StartIntroDrive(float startX, float targetX, float speed, Action onComplete)
+        {
+            transform.position = new Vector3(startX, transform.position.y, transform.position.z);
+            introTargetX = targetX;
+            introDriveSpeed = speed;
+            introOnComplete = onComplete;
+            IsIntroDriving = true;
+        }
+
+        private void UpdateIntroDrive()
+        {
+            float currentX = transform.position.x;
+            float dir = Mathf.Sign(introTargetX - currentX);
+            if (Mathf.Abs(dir) < 0.001f) dir = 1f;
+
+            float step = dir * introDriveSpeed * Time.deltaTime;
+            float newX = currentX + step;
+
+            bool reached = false;
+            if ((dir > 0 && newX >= introTargetX) || (dir < 0 && newX <= introTargetX))
+            {
+                newX = introTargetX;
+                reached = true;
+            }
+
+            Vector3 targetPos = new Vector3(newX, transform.position.y, transform.position.z);
+            Rigidbody2D rb = GetComponent<Rigidbody2D>();
+            if (rb != null) rb.MovePosition(targetPos);
+            else transform.position = targetPos;
+
+            isMovingThisFrame = true;
+            currentMoveDir = dir;
+            IsActivelyMoving = true;
+            RotateWheels(dir);
+
+            if (reached)
+            {
+                IsIntroDriving = false;
+                IsActivelyMoving = false;
+                Action callback = introOnComplete;
+                introOnComplete = null;
+                callback?.Invoke();
+            }
+        }
+
         private float uiInputDirection = 0f;
 
         public void PressMoveLeft() { uiInputDirection = -1f; }
@@ -209,6 +259,12 @@ namespace CastleBusters.Environment
 
         private void Update()
         {
+            if (IsIntroDriving)
+            {
+                UpdateIntroDrive();
+                return;
+            }
+
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
             if (!isMyTurn || castle == null) return;
             if (castle.ownerSide == PlayerSide.Player2) return;

@@ -36,17 +36,28 @@ namespace CastleBusters.Core
         public void InitializeGame()
         {
             IsGameOver = false;
-            CurrentState = GameState.PlayerTurn;
+            CurrentState = GameState.IntroSequence;
 
             EnsureBackgroundManager();
 
             if (player1Castle != null) player1Castle.OnCastleDestroyed += CheckVictoryState;
             if (player2Castle != null) player2Castle.OnCastleDestroyed += CheckVictoryState;
 
-            if (TurnManager.Instance != null)
+            MatchIntroController introController = FindFirstObjectByType<MatchIntroController>();
+            if (introController == null)
             {
-                TurnManager.Instance.StartTurn(PlayerSide.Player1);
+                GameObject introObj = new GameObject("MatchIntroController");
+                introController = introObj.AddComponent<MatchIntroController>();
             }
+
+            introController.PlayIntroSequence(player1Castle, player2Castle, (startingPlayer) =>
+            {
+                CurrentState = GameState.PlayerTurn;
+                if (TurnManager.Instance != null)
+                {
+                    TurnManager.Instance.StartTurn(startingPlayer);
+                }
+            });
         }
 
         private void EnsureBackgroundManager()
