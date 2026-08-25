@@ -98,7 +98,16 @@ namespace CastleBusters.Environment
 
         private void Start()
         {
-            if (trackAnimators == null || trackAnimators.Length == 0)
+            bool hasValidTrack = false;
+            if (trackAnimators != null && trackAnimators.Length > 0)
+            {
+                foreach (var t in trackAnimators)
+                {
+                    if (t != null) { hasValidTrack = true; break; }
+                }
+            }
+
+            if (!hasValidTrack)
             {
                 trackAnimators = GetComponentsInChildren<TankTrackAnimator>();
             }
