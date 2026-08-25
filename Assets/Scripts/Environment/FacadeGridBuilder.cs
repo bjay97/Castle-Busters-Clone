@@ -631,9 +631,22 @@ namespace CastleBusters.Environment
             int count = Mathf.Clamp(debrisCountPerImpact, 1, 25);
 
             // Priority 1: Custom missile debris sprites -> Priority 2: Facade debrisChipSprites -> Priority 3: Fallback chip pool
-            Sprite[] chipPool = (customDebrisSprites != null && customDebrisSprites.Length > 0) 
-                ? customDebrisSprites 
-                : ((debrisChipSprites != null && debrisChipSprites.Length > 0) ? debrisChipSprites : GetOrCreateDefaultDebrisChipPool());
+            Sprite[] chipPool;
+            bool isFallbackDebris = false;
+
+            if (customDebrisSprites != null && customDebrisSprites.Length > 0)
+            {
+                chipPool = customDebrisSprites;
+            }
+            else if (debrisChipSprites != null && debrisChipSprites.Length > 0)
+            {
+                chipPool = debrisChipSprites;
+            }
+            else
+            {
+                chipPool = GetOrCreateDefaultDebrisChipPool();
+                isFallbackDebris = true;
+            }
 
             for (int i = 0; i < count; i++)
             {
@@ -651,14 +664,22 @@ namespace CastleBusters.Environment
 
                 Rigidbody2D pieceRb = pieceObj.AddComponent<Rigidbody2D>();
 
-                // Slightly vary color shade for natural organic look
-                float shadeFactor = Random.Range(0.80f, 1.20f);
-                Color pieceColor = new Color(
-                    Mathf.Clamp01(sampledColor.r * shadeFactor),
-                    Mathf.Clamp01(sampledColor.g * shadeFactor),
-                    Mathf.Clamp01(sampledColor.b * shadeFactor),
-                    1f
-                );
+                // Only tint procedural fallback shapes; preserve exact carved artwork colors for pre-loaded/custom debris chip sprites
+                Color pieceColor;
+                if (isFallbackDebris)
+                {
+                    float shadeFactor = Random.Range(0.80f, 1.20f);
+                    pieceColor = new Color(
+                        Mathf.Clamp01(sampledColor.r * shadeFactor),
+                        Mathf.Clamp01(sampledColor.g * shadeFactor),
+                        Mathf.Clamp01(sampledColor.b * shadeFactor),
+                        1f
+                    );
+                }
+                else
+                {
+                    pieceColor = Color.white;
+                }
 
                 Vector2 randomDirection = (Random.insideUnitCircle.normalized + Vector2.up * 0.7f).normalized;
                 Vector2 velocityImpulse = randomDirection * Random.Range(3.5f, 8.5f);
