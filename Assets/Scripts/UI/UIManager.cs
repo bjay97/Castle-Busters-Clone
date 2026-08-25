@@ -28,6 +28,10 @@ namespace CastleBusters.UI
         [Header("Turn & Action HUD (Supports Legacy Text or TextMeshPro)")]
         public Text turnText;
         public TextMeshProUGUI turnTextTMP;
+
+        [Header("Turn Overlays")]
+        public GameObject turnOverlayPlayer;
+        public GameObject turnOverlayEnemy;
         
         public Text actionCounterText;
         public TextMeshProUGUI actionCounterTextTMP;
@@ -479,8 +483,57 @@ namespace CastleBusters.UI
             if (timerTextTMP != null) timerTextTMP.gameObject.SetActive(visible);
         }
 
+        private void MakeClickthrough(GameObject overlayObj)
+        {
+            if (overlayObj == null) return;
+            Graphic[] graphics = overlayObj.GetComponentsInChildren<Graphic>(true);
+            foreach (var g in graphics)
+            {
+                if (g != null)
+                {
+                    g.raycastTarget = false;
+                }
+            }
+        }
+
+        private void EnsureTurnOverlayReferences()
+        {
+            if (turnOverlayPlayer == null || turnOverlayEnemy == null)
+            {
+                Canvas[] canvases = FindObjectsByType<Canvas>(FindObjectsSortMode.None);
+                foreach (var c in canvases)
+                {
+                    if (turnOverlayPlayer == null)
+                    {
+                        Transform t = c.transform.Find("TurnOverlayPlayer");
+                        if (t != null) turnOverlayPlayer = t.gameObject;
+                    }
+                    if (turnOverlayEnemy == null)
+                    {
+                        Transform t = c.transform.Find("TurnOverlayEnemy");
+                        if (t != null) turnOverlayEnemy = t.gameObject;
+                    }
+                }
+            }
+
+            MakeClickthrough(turnOverlayPlayer);
+            MakeClickthrough(turnOverlayEnemy);
+        }
+
         private void UpdateTurnUI(PlayerSide side)
         {
+            EnsureTurnOverlayReferences();
+
+            if (turnOverlayPlayer != null)
+            {
+                turnOverlayPlayer.SetActive(side == PlayerSide.Player1);
+            }
+
+            if (turnOverlayEnemy != null)
+            {
+                turnOverlayEnemy.SetActive(side == PlayerSide.Player2);
+            }
+
             if (turnText != null) turnText.gameObject.SetActive(false);
             if (turnTextTMP != null) turnTextTMP.gameObject.SetActive(false);
 
